@@ -11,6 +11,7 @@ add_executable(${EXE_NAME}
     ../../deps/imgui-sfml/imgui-SFML.cpp
 
     main.cpp
+    Processor.cpp
 )
 
 target_precompile_headers(${PROJECT_NAME}

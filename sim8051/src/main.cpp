@@ -1,4 +1,5 @@
 #include "sim8051/stdafx.hpp"
+#include "sim8051/Processor.hpp"
 
 // The main loop, including some stuff like scrolling
 int main() {
@@ -24,7 +25,9 @@ int main() {
 
 
     // Simulation stuff
-
+    auto processor = std::make_shared<Processor>();
+    if ( !processor->load_hex_code( "tests/test.hex" ) )
+        return -1;
 
     // Main loop
     while ( running ) {
@@ -67,15 +70,24 @@ int main() {
         }
 
         // Updating
+
         ImGui::SFML::Update( window, delta_time );
+
+        // Simulation
+        processor->do_cycle();
+
+        // Gui
+        ImGui::Begin( "Meta" );
+        ImGui::LabelText( "Cycle count", to_string( processor->cycle_count ).c_str() );
+        ImGui::End();
 
         ImGui::EndFrame();
 
         // Rendering
+
         window.clear( sf::Color( 0x707070ff ) );
 
-
-
+        // Info window
         ImGui::SFML::Render( window );
 
         window.display();

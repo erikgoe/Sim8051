@@ -1,8 +1,6 @@
 # Sim8051
 Simulator for the 8051 architecture.
 
-See https://www.keil.com/support/man/docs/is51 for instruction set.
-
 ## Why?
 I need a simulator for my little compiler project and didn't find a simple one that compiles on linux, so I thought it would make sense to quickly write my own.
 
@@ -27,3 +25,9 @@ SFML ist the only dependency which must be installed manually, the rest is inclu
     mkdir build && cd build
     cmake ..
     make
+
+
+### Sources
+* https://www.keil.com/support/man/docs/is51
+* https://www.keil.com/support/man/docs/is51
+* https://technobyte.org/8051-special-function-registers-sfr/#Program_status_word_PSW
