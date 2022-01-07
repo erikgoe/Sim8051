@@ -28,6 +28,6 @@ SFML ist the only dependency which must be installed manually, the rest is inclu
 
 
 ### Sources
-* https://www.keil.com/support/man/docs/is51
+* https://en.wikipedia.org/wiki/Intel_8051
 * https://www.keil.com/support/man/docs/is51
 * https://technobyte.org/8051-special-function-registers-sfr/#Program_status_word_PSW
