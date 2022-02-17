@@ -100,6 +100,7 @@ void Processor::reset() {
     iram.fill( 0 );
     xram.fill( 0 );
     pc = 0;
+    cycle_count = 0;
 }
 
 bool parity_of_byte( u8 byte ) {
@@ -168,27 +169,33 @@ void Processor::do_cycle() {
 
     // Execute the instruction.
     u8 ls_nibble = instr & 0xf;
-    u8 ms_nibble = instr & 0xf0;
+    u8 ms_nibble = ( instr & 0xf0 ) >> 4;
     if ( ls_nibble > 3 ) {
         // Regular instruction
         u8 *value;
+        u8 *second_operand;
         if ( ls_nibble == 4 ) {
             // Immediate
             value = &arg1;
+            second_operand = &arg2;
             inc_pc = 2;
         } else if ( ls_nibble == 5 ) {
             // Direct access
             value = &direct_acc( arg1 );
+            second_operand = &arg2;
             inc_pc = 2;
         } else if ( ls_nibble == 6 ) {
             // Indirect R0 access
             value = &iram[r0];
+            second_operand = &arg1;
         } else if ( ls_nibble == 7 ) {
             // Indirect R1 access
             value = &iram[r1];
+            second_operand = &arg1;
         } else {
             // Register
             value = r0_ptr + ls_nibble - 8;
+            second_operand = &arg1;
         }
 
         // Process the instruction
@@ -206,7 +213,7 @@ void Processor::do_cycle() {
                 a--;
                 set_bit_to( parity_addr, parity_of_byte( a ) );
             } else {
-                value++;
+                value--;
             }
             break;
         case 0x2: // ADD A,operand
@@ -242,12 +249,12 @@ void Processor::do_cycle() {
                 a = *value;
                 set_bit_to( parity_addr, parity_of_byte( a ) );
             } else {
-                *value = arg2;
-                inc_pc = 3;
+                *value = *second_operand;
+                inc_pc++;
             }
             break;
         case 0x8: // MOV address,operand
-            if ( ls_nibble = 4 ) {
+            if ( ls_nibble == 4 ) {
                 // Actually encodes division
                 set_bit_to( carry_addr, false );
                 if ( b == 0 ) {
@@ -277,7 +284,7 @@ void Processor::do_cycle() {
             set_bit_to( parity_addr, parity_of_byte( a ) );
             break;
         case 0xA: // MOV operand,address
-            if ( ls_nibble = 4 ) {
+            if ( ls_nibble == 4 ) {
                 // Actually encodes multiplication
                 set_bit_to( carry_addr, false );
                 u16 prod = static_cast<u16>( a ) * static_cast<u16>( b );
@@ -293,26 +300,26 @@ void Processor::do_cycle() {
             }
             break;
         case 0xB: // CJNE operand,#data,offset
-            if ( ls_nibble = 4 ) {
+            if ( ls_nibble == 4 ) {
                 pc += 3;
                 if ( a != arg1 )
-                    pc += arg2;
+                    pc += *second_operand;
                 set_bit_to( carry_addr, a < arg1 );
             } else if ( ls_nibble == 5 ) {
                 pc += 3;
                 if ( a != *value )
-                    pc += arg2;
+                    pc += *second_operand;
                 set_bit_to( carry_addr, a < *value );
             } else {
                 pc += 3;
                 if ( *value != arg1 )
-                    pc += arg2;
+                    pc += *second_operand;
                 set_bit_to( carry_addr, *value < arg1 );
             }
             inc_pc = 0;
             break;
         case 0xC: // XCH A,operand
-            if ( ls_nibble = 4 ) {
+            if ( ls_nibble == 4 ) {
                 // Actually encodes swap A nibbles
                 a = ( ( a & 0xf ) << 4 ) | ( ( a & 0xf0 ) >> 4 );
             } else {
@@ -323,7 +330,7 @@ void Processor::do_cycle() {
             }
             break;
         case 0xD: // DJNZ operand,offset
-            if ( ls_nibble = 4 ) {
+            if ( ls_nibble == 4 ) {
                 // Actually encodes DA A
                 if ( ( a & 0xf ) > 9 || is_bit_set( auxilary_addr ) ) {
                     if ( static_cast<u16>( a ) + 6 > 0xff )
@@ -345,7 +352,7 @@ void Processor::do_cycle() {
                 pc += 3; // Documentation specifies 2, but 3 makes more sense.
                 *value--;
                 if ( *value != 0 )
-                    pc += arg2;
+                    pc += *second_operand;
                 inc_pc = 0;
             } else {
                 pc += 2;
@@ -356,7 +363,7 @@ void Processor::do_cycle() {
             }
             break;
         case 0xE: // MOV A,operand
-            if ( ls_nibble = 4 ) {
+            if ( ls_nibble == 4 ) {
                 // Actually encodes CLR A
                 a = 0;
             } else {
@@ -365,7 +372,7 @@ void Processor::do_cycle() {
             }
             break;
         case 0xF: // MOV operand,A
-            if ( ls_nibble = 4 ) {
+            if ( ls_nibble == 4 ) {
                 // Actually encodes CPL A
                 a = ~a;
             } else {

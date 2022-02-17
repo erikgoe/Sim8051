@@ -3,6 +3,7 @@
 /// Holds processor context and does the simulation.
 class Processor {
     u8 invalid_byte; // Used for invalid access (like accessing invalid direct addresses)
+public:
 
     /// Returns the value at a direct address.
     u8 &direct_acc( u8 addr );
@@ -11,7 +12,6 @@ class Processor {
     /// Sets or clears a bit.
     void set_bit_to( u8 bit_addr, bool value );
 
-public:
     std::array<u8, 128> sfr; // Special Function Registers address space.
     std::array<u8, 256> iram; // Internal RAM.
     std::array<u8, 64 * 1024> xram; // External RAM.
