@@ -71,6 +71,12 @@ int main() {
             case sf::Event::KeyPressed:
                 if ( not_key_insert_gui ) {
                     // Key input
+                    if ( evt.key.code == sf::Keyboard::Space ) {
+                        // Single step
+                        steps_per_frame = 1;
+                        pause_next_frame = true;
+                        max_speed = false;
+                    }
                 }
                 break;
             case sf::Event::MouseButtonPressed:
@@ -134,30 +140,46 @@ int main() {
         if ( ImGui::Button( "Reset MCU" ) ) {
             processor->reset();
         }
-        ImGui::Separator();
-        ImGui::Spacing();
-        ImGui::Text( String( "Next instruction: " + to_hex_str( processor->text[processor->pc] ) ).c_str() );
-
+        
         ImGui::End();
 
         ImGui::Begin( "Special function registers" );
-        ImGui::Text(
-            String( "PSW  = " + to_hex_str( processor->sfr[0xD0] ) + " (" + to_string( processor->sfr[0xD0] ) + ")" )
-                .c_str() );
-        ImGui::Text(
-            String( "A    = " + to_hex_str( processor->sfr[0xE0] ) + " (" + to_string( processor->sfr[0xE0] ) + ")" )
-                .c_str() );
-        ImGui::Text(
-            String( "B    = " + to_hex_str( processor->sfr[0xF0] ) + " (" + to_string( processor->sfr[0xF0] ) + ")" )
-                .c_str() );
-        u16 dptr_value = ( static_cast<u16>( processor->sfr[0x83] ) << 8 ) + processor->sfr[0x82];
+        ImGui::Text( String( "PSW  = " + to_hex_str( processor->direct_acc( 0xD0 ) ) + " (" +
+                             to_string( processor->direct_acc( 0xD0 ) ) + ")" )
+                         .c_str() );
+        ImGui::Text( String( "A    = " + to_hex_str( processor->direct_acc( 0xE0 ) ) + " (" +
+                             to_string( processor->direct_acc( 0xE0 ) ) + ")" )
+                         .c_str() );
+        ImGui::Text( String( "B    = " + to_hex_str( processor->direct_acc( 0xF0 ) ) + " (" +
+                             to_string( processor->direct_acc( 0xF0 ) ) + ")" )
+                         .c_str() );
+        u16 dptr_value = ( static_cast<u16>( processor->direct_acc( 0x83 ) ) << 8 ) + processor->direct_acc( 0x82 );
         ImGui::Text(
             String( "DPTR = " + to_hex_str( dptr_value, 16 ) + " (" + to_string( dptr_value ) + ")" ).c_str() );
-        ImGui::Text(
-            String( "SP   = " + to_hex_str( processor->sfr[0x81] ) + " (" + to_string( processor->sfr[0x81] ) + ")" )
-                .c_str() );
+        ImGui::Text( String( "SP   = " + to_hex_str( processor->direct_acc( 0x81 ) ) + " (" +
+                             to_string( processor->direct_acc( 0x81 ) ) + ")" )
+                         .c_str() );
         ImGui::Text(
             String( "PC   = " + to_hex_str( processor->pc, 16 ) + " (" + to_string( processor->pc ) + ")" ).c_str() );
+
+        ImGui::Spacing();
+        auto bank_nr = ( processor->direct_acc( 0xD0 ) & 0x18 ) >> 3;
+        auto *r0_ptr = &processor->iram[8 * bank_nr];
+        ImGui::Text( String( "R0   = " + to_hex_str( *r0_ptr, 16 ) + " (" + to_string( *r0_ptr ) + ")" ).c_str() );
+        ImGui::Text( String( "R1   = " + to_hex_str( *( r0_ptr + 1 ), 16 ) + " (" + to_string( *( r0_ptr + 1 ) ) + ")" )
+                         .c_str() );
+        ImGui::Text( String( "R2   = " + to_hex_str( *( r0_ptr + 2 ), 16 ) + " (" + to_string( *( r0_ptr + 2 ) ) + ")" )
+                         .c_str() );
+        ImGui::Text( String( "R3   = " + to_hex_str( *( r0_ptr + 3 ), 16 ) + " (" + to_string( *( r0_ptr + 3 ) ) + ")" )
+                         .c_str() );
+        ImGui::Text( String( "R4   = " + to_hex_str( *( r0_ptr + 4 ), 16 ) + " (" + to_string( *( r0_ptr + 4 ) ) + ")" )
+                         .c_str() );
+        ImGui::Text( String( "R5   = " + to_hex_str( *( r0_ptr + 5 ), 16 ) + " (" + to_string( *( r0_ptr + 5 ) ) + ")" )
+                         .c_str() );
+        ImGui::Text( String( "R6   = " + to_hex_str( *( r0_ptr + 6 ), 16 ) + " (" + to_string( *( r0_ptr + 6 ) ) + ")" )
+                         .c_str() );
+        ImGui::Text( String( "R7   = " + to_hex_str( *( r0_ptr + 7 ), 16 ) + " (" + to_string( *( r0_ptr + 7 ) ) + ")" )
+                         .c_str() );
         ImGui::End();
 
         ImGui::Begin( "Internal RAM" );
@@ -632,7 +654,7 @@ String get_decoded_instruction_string( Processor &processor, u16 code_addr ) {
         ret += operand;
 
         if ( operand == "A" ) {
-            ret += " (" + to_hex_str( processor.iram[0xE0] ) + ")";
+            ret += " (" + to_hex_str( processor.direct_acc( 0xE0 ) ) + ")";
         } else if ( operand.size() == 2 && operand[0] == 'R' ) {
             ret += " (" + to_hex_str( *( r0_ptr + stoi( operand.substr( 1 ) ) ) ) + ")";
         } else if ( operand == "@R0" ) {
@@ -652,34 +674,34 @@ String get_decoded_instruction_string( Processor &processor, u16 code_addr ) {
                 ret += " (" + to_hex_str( processor.iram[*( r0_ptr + 1 )] ) + ")";
             }
         } else if ( operand == "#immed" || operand == "addr16" ) {
-            operand_offset++;
             if ( two_byte_operand ) {
-                operand_offset++;
                 ret += " (" +
                        to_hex_str( ( ( static_cast<u16>( processor.text[code_addr + 1] ) << 8 ) ) |
                                        processor.text[code_addr + 2],
                                    16 ) +
                        ")";
+                operand_offset++;
             } else {
-                ret += " (" + to_hex_str( processor.text[code_addr + i] ) + ")";
+                ret += " (" + to_hex_str( processor.text[code_addr + operand_offset] ) + ")";
             }
+            operand_offset++;
         } else if ( operand == "direct" ) {
-            operand_offset++;
-            auto addr = processor.text[code_addr + i];
+            auto addr = processor.text[code_addr + operand_offset];
             String special = sfr_name( addr );
-            ret +=
-                " (" + ( special != "" ? "" + special + "; " : "" ) + to_hex_str( processor.direct_acc( addr ) ) + ")";
-        } else if ( operand == "addr11" ) {
+            ret += " (&" + ( special != "" ? special : to_hex_str( addr ) ) + "; " +
+                   to_hex_str( processor.direct_acc( addr ) ) + ")";
             operand_offset++;
+        } else if ( operand == "addr11" ) {
             u16 addr = ( processor.pc & 0b1111100000000000 ) + ( static_cast<u16>( code & 0b11100000 ) << 3 ) +
                        processor.text[code_addr + 1];
             ret += " (" + to_hex_str( addr, 16 ) + ")";
+            operand_offset++;
         } else if ( operand == "offset" ) {
+            ret += " (" + to_hex_str_signed( *reinterpret_cast<i8 *>( &processor.text[code_addr + operand_offset] ) ) +
+                   ")";
             operand_offset++;
-            ret += " (" + to_hex_str_signed( *reinterpret_cast<i8 *>( &processor.text[code_addr + i] ) ) + ")";
         } else if ( operand == "bit" || operand == "/bit" ) {
-            operand_offset++;
-            u8 bit_addr = processor.text[code_addr + i];
+            u8 bit_addr = processor.text[code_addr + operand_offset];
             if ( bit_addr < 0x80 ) {
                 ret += " (IRAM " + to_hex_str( ( bit_addr & 0b11111000 ) >> 3 ) + "." +
                        to_hex_str( ( bit_addr & 0b111 ) ) + "; " + ( processor.is_bit_set( bit_addr ) ? "1" : "0" ) +
@@ -690,27 +712,30 @@ String get_decoded_instruction_string( Processor &processor, u16 code_addr ) {
                        to_hex_str( ( bit_addr & 0b111 ) ) + "; " + ( processor.is_bit_set( bit_addr ) ? "1" : "0" ) +
                        ")";
             }
+            operand_offset++;
         } else if ( operand == "C" ) {
             ret += " (" + String( processor.is_bit_set( 0xD7 ) ? "1" : "0" ) + ")";
         } else if ( operand == "DPTR" ) {
-            ret +=
-                " (" + to_hex_str( ( static_cast<u16>( processor.iram[0x83] ) << 8 ) | processor.iram[0x82], 16 ) + ")";
+            ret += " (" +
+                   to_hex_str( ( static_cast<u16>( processor.direct_acc( 0x83 ) ) << 8 ) | processor.direct_acc( 0x82 ),
+                               16 ) +
+                   ")";
         } else if ( operand == "@DPTR" ) {
             // Always MOVX
-            ret +=
-                " (" +
-                to_hex_str( processor.xram[( static_cast<u16>( processor.iram[0x83] ) << 8 ) | processor.iram[0x82]] ) +
-                ")";
+            ret += " (" +
+                   to_hex_str( processor.xram[( static_cast<u16>( processor.direct_acc( 0x83 ) ) << 8 ) |
+                                              processor.direct_acc( 0x82 )] ) +
+                   ")";
         } else if ( operand == "@A+DPTR" ) {
             ret += " (" +
-                   to_hex_str(
-                       processor.text[( ( static_cast<u16>( processor.iram[0x83] ) << 8 ) | processor.iram[0x82] ) +
-                                      processor.iram[0xE0]] ) +
+                   to_hex_str( processor.text[( ( static_cast<u16>( processor.direct_acc( 0x83 ) ) << 8 ) |
+                                                processor.direct_acc( 0x82 ) ) +
+                                              processor.direct_acc( 0xE0 )] ) +
                    ")";
         } else if ( operand == "@A+PC" ) {
-            ret += " (" + to_hex_str( processor.text[processor.pc + processor.iram[0xE0]] ) + ")";
+            ret += " (" + to_hex_str( processor.text[processor.pc + processor.direct_acc( 0xE0 )] ) + ")";
         } else if ( operand == "B" ) {
-            ret += " (" + to_hex_str( processor.sfr[processor.iram[0xF0]] ) + ")";
+            ret += " (" + to_hex_str( processor.direct_acc( 0xF0 ) ) + ")";
         }
     }
 

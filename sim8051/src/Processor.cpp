@@ -126,30 +126,30 @@ void Processor::do_cycle() {
     constexpr u8 acc_7_addr = 0xE7; // Address of last bit in accumulator.
 
     // SFRs
-    auto &a = sfr[0xE0];
-    auto &b = sfr[0xF0];
-    auto &psw = sfr[0xD0];
-    // auto &ip = sfr[0xB8];
-    // auto &ie = sfr[0xA8];
-    auto &dpl = sfr[0x82];
-    auto &dph = sfr[0x83];
-    // auto &p0 = sfr[0x80];
-    // auto &p1 = sfr[0x90];
-    auto &p2 = sfr[0xA0];
-    // auto &p3 = sfr[0xB0];
-    // auto &pcon = sfr[0x87];
-    // auto &scon = sfr[0x98];
-    // auto &sbuf = sfr[0x99];
-    // auto &tcon = sfr[0x88];
-    // auto &t2con = sfr[0xC8];
-    // auto &tmod = sfr[0x89];
-    // auto &tl0 = sfr[0x9A];
-    // auto &tl1 = sfr[0x9B];
-    // auto &tl2 = sfr[0xCC];
-    // auto &th0 = sfr[0x9C];
-    // auto &th1 = sfr[0x9D];
-    // auto &th2 = sfr[0xCD];
-    auto &sp = sfr[0x81];
+    auto &a = direct_acc( 0xE0 );
+    auto &b = direct_acc( 0xF0 );
+    auto &psw = direct_acc( 0xD0 );
+    // auto &ip = direct_acc(0xB8);
+    // auto &ie = direct_acc(0xA8);
+    auto &dpl = direct_acc( 0x82 );
+    auto &dph = direct_acc( 0x83 );
+    // auto &p0 = direct_acc(0x80);
+    // auto &p1 = direct_acc(0x90);
+    auto &p2 = direct_acc( 0xA0 );
+    // auto &p3 = direct_acc(0xB0);
+    // auto &pcon = direct_acc(0x87);
+    // auto &scon = direct_acc(0x98);
+    // auto &sbuf = direct_acc(0x99);
+    // auto &tcon = direct_acc(0x88);
+    // auto &t2con = direct_acc(0xC8);
+    // auto &tmod = direct_acc(0x89);
+    // auto &tl0 = direct_acc(0x9A);
+    // auto &tl1 = direct_acc(0x9B);
+    // auto &tl2 = direct_acc(0xCC);
+    // auto &th0 = direct_acc(0x9C);
+    // auto &th1 = direct_acc(0x9D);
+    // auto &th2 = direct_acc(0xCD);
+    auto &sp = direct_acc( 0x81 );
 
     auto bank_nr = ( psw & 0x18 ) >> 3;
     auto *r0_ptr = &iram[8 * bank_nr];
@@ -350,13 +350,13 @@ void Processor::do_cycle() {
                 a = ( a & 0xf0 ) | tmp;
             } else if ( ls_nibble == 5 ) {
                 pc += 3; // Documentation specifies 2, but 3 makes more sense.
-                *value--;
+                ( *value )--;
                 if ( *value != 0 )
                     pc += *second_operand;
                 inc_pc = 0;
             } else {
                 pc += 2;
-                *value--;
+                ( *value )--;
                 if ( *value != 0 )
                     pc += arg1;
                 inc_pc = 0;
