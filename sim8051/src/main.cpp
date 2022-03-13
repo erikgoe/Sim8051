@@ -49,7 +49,7 @@ int main() {
     bool max_speed = false;
     std::vector<u16> op_code_indices; // Pointers to the op codes.
     auto processor = std::make_shared<Processor>();
-    if ( !processor->load_hex_code( "tests/test.hex" ) )
+    if ( !processor->load_hex_code( "tests/simple.hex" ) )
         return -1;
     decode_instructions( *processor, op_code_indices );
 
