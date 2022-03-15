@@ -704,7 +704,10 @@ void compile_assembly( const String &code, std::ostream &output ) {
                     }
                 } else {
                     size_t i = 1;
-                    for ( auto arg : { real_arg1, real_arg2 } ) {
+                    auto list = { real_arg1, real_arg2 };
+                    if ( rev_op_codes[line] == 0x85 )
+                        list = { real_arg2, real_arg1 }; // Swap parameters
+                    for ( auto arg : list ) {
                         if ( signature[i] == "direct" || signature[i] == "bit" || signature[i] == "/bit" ||
                              signature[i] == "#immed" ) {
                             i8 val;
