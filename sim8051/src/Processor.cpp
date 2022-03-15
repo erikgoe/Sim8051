@@ -35,7 +35,7 @@ void Processor::set_bit_to( u8 bit_addr, bool value ) {
         byte = &direct_acc( 0x80 + ( bit_addr & 0b01111000 ) );
     }
     if ( value ) {
-        ( *byte ) |= 1 >> ( bit_addr & 0b111 );
+        ( *byte ) |= 1 << ( bit_addr & 0b111 );
     } else {
         ( *byte ) &= ~( 1 << ( bit_addr & 0b111 ) );
     }
@@ -83,7 +83,7 @@ bool Processor::load_hex_code( const String &file ) {
             }
         } else if ( str.substr( 7, 2 ) == "01" ) {
             // End line
-            if ( str != ":00000001FF" ) {
+            if ( str != ":00000001FF" && str != ":00000001ff" ) {
                 log( "Syntax error at termination line " + to_string( line_ctr ) );
                 return false;
             }
