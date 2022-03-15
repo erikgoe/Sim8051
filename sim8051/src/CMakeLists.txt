@@ -10,6 +10,7 @@ add_executable(${EXE_NAME}
     ../../deps/imgui/misc/cpp/imgui_stdlib.cpp
     ../../deps/imgui-sfml/imgui-SFML.cpp
 
+    Encoding.cpp
     main.cpp
     Processor.cpp
 )

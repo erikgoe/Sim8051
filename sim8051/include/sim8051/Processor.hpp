@@ -1,3 +1,5 @@
+#pragma once
+
 #include "sim8051/stdafx.hpp"
 
 /// Holds processor context and does the simulation.
