@@ -21,6 +21,7 @@
 #include "SFML/Graphics.hpp"
 #include "imgui-SFML.h"
 #include "imgui.h"
+#include "misc/cpp/imgui_stdlib.h"
 
 using u8 = unsigned char;
 using u16 = unsigned short;

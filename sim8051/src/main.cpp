@@ -9,22 +9,23 @@ String to_hex_str( u16 val, u8 bytes = 8 ) {
 String to_hex_str_signed( i8 val ) {
     std::stringstream stream;
     if ( val < 0 ) {
-        stream << std::hex << std::setfill( '0' ) << std::setw( 2 ) << ( -val );
+        stream << std::hex << std::setfill( '0' ) << std::setw( 2 ) << static_cast<u16>( -val );
         return "-" + stream.str();
     } else {
-        stream << std::hex << std::setfill( '0' ) << std::setw( 2 ) << val;
+        stream << std::hex << std::setfill( '0' ) << std::setw( 2 ) << static_cast<u16>( val );
         return stream.str();
     }
 }
 
 void decode_instructions( const Processor &processor, std::vector<u16> &op_code_indices );
 String get_decoded_instruction_string( Processor &processor, u16 code_addr );
+void compile_assembly( const String &code, std::ostream &output );
 
 // The main loop, including some stuff like scrolling
 int main() {
     // Initialize all the stuff
     sf::ContextSettings context_settings( 0, 0, 4 );
-    sf::RenderWindow window( sf::VideoMode( 800, 600, 32 ), "Sim8051", sf::Style::Default, context_settings );
+    sf::RenderWindow window( sf::VideoMode( 1200, 800, 32 ), "Sim8051", sf::Style::Default, context_settings );
     bool fullscreen = false;
     window.setFramerateLimit( 60 );
     auto view = window.getDefaultView();
@@ -49,9 +50,24 @@ int main() {
     bool max_speed = false;
     std::vector<u16> op_code_indices; // Pointers to the op codes.
     auto processor = std::make_shared<Processor>();
-    if ( !processor->load_hex_code( "tests/simple.hex" ) )
-        return -1;
-    decode_instructions( *processor, op_code_indices );
+    String hex_filename = "tests/simple.hex";
+    String editor_asm_filename = "tests/simple.a51";
+    String editor_hex_file_dir = "tests";
+    String editor_content = "";
+
+    // Load simulation hex.
+    if ( processor->load_hex_code( hex_filename ) )
+        decode_instructions( *processor, op_code_indices );
+
+    // Try to read editor file.
+    {
+        std::ifstream file( editor_asm_filename );
+        if ( file.good() ) {
+            String tmp;
+            while ( std::getline( file, tmp ) )
+                editor_content += tmp + '\n';
+        }
+    }
 
     // Main loop
     while ( running ) {
@@ -140,7 +156,14 @@ int main() {
         if ( ImGui::Button( "Reset MCU" ) ) {
             processor->reset();
         }
-        
+        ImGui::Spacing();
+        if ( ImGui::InputText( "Hex file", &hex_filename ) | ImGui::Button( "Load" ) ) {
+            steps_per_frame = 0;
+            max_speed = false;
+            if ( processor->load_hex_code( hex_filename ) )
+                decode_instructions( *processor, op_code_indices );
+        }
+
         ImGui::End();
 
         ImGui::Begin( "Special function registers" );
@@ -250,6 +273,47 @@ int main() {
                 }
             }
             ImGui::PopStyleVar();
+        }
+        ImGui::End();
+
+        ImGui::Begin( "Editor" );
+        {
+            bool should_load = ImGui::InputText( "In file", &editor_asm_filename );
+            ImGui::InputText( "Out dir file", &editor_hex_file_dir );
+
+            should_load |= ImGui::Button( "Load" );
+            ImGui::SameLine();
+            bool should_compile = ImGui::Button( "Compile" );
+
+            should_compile |= ImGui::InputTextMultiline( "##content", &editor_content, ImVec2( -FLT_MIN, -FLT_MIN ),
+                                                         ImGuiInputTextFlags_EnterReturnsTrue );
+
+            if ( should_load ) {
+                std::ifstream file( editor_asm_filename );
+                String tmp;
+                while ( std::getline( file, tmp ) )
+                    editor_content += tmp + '\n';
+            }
+
+            if ( should_compile ) {
+                auto name_begin = editor_asm_filename.find_last_of( "/" ) + 1;
+                if ( name_begin == editor_asm_filename.npos + 1 )
+                    name_begin = 0;
+                auto name_size = editor_asm_filename.find_last_of( "." ) - name_begin;
+                auto filename =
+                    editor_hex_file_dir + "/" + editor_asm_filename.substr( name_begin, name_size ) + ".hex";
+                std::ofstream file( filename );
+
+                compile_assembly( editor_content, file );
+                file.close();
+
+                if ( hex_filename == filename ) {
+                    steps_per_frame = 0;
+                    max_speed = false;
+                    if ( processor->load_hex_code( hex_filename ) )
+                        decode_instructions( *processor, op_code_indices );
+                }
+            }
         }
         ImGui::End();
 
@@ -487,16 +551,16 @@ std::map<u8, std::vector<String>> op_code_signatures = {
     { 0xB3, { "CPL", "C" } },
     { 0xB4, { "CJNE", "A", "#immed", "offset" } },
     { 0xB5, { "CJNE", "A", "direct", "offset" } },
-    { 0xB6, { "CJNE", "@R0, #immed", "offset" } },
-    { 0xB7, { "CJNE", "@R1, #immed", "offset" } },
-    { 0xB8, { "CJNE", "R0, #immed", "offset" } },
-    { 0xB9, { "CJNE", "R1, #immed", "offset" } },
-    { 0xBA, { "CJNE", "R2, #immed", "offset" } },
-    { 0xBB, { "CJNE", "R3, #immed", "offset" } },
-    { 0xBC, { "CJNE", "R4, #immed", "offset" } },
-    { 0xBD, { "CJNE", "R5, #immed", "offset" } },
-    { 0xBE, { "CJNE", "R6, #immed", "offset" } },
-    { 0xBF, { "CJNE", "R7, #immed", "offset" } },
+    { 0xB6, { "CJNE", "@R0", "#immed", "offset" } },
+    { 0xB7, { "CJNE", "@R1", "#immed", "offset" } },
+    { 0xB8, { "CJNE", "R0", "#immed", "offset" } },
+    { 0xB9, { "CJNE", "R1", "#immed", "offset" } },
+    { 0xBA, { "CJNE", "R2", "#immed", "offset" } },
+    { 0xBB, { "CJNE", "R3", "#immed", "offset" } },
+    { 0xBC, { "CJNE", "R4", "#immed", "offset" } },
+    { 0xBD, { "CJNE", "R5", "#immed", "offset" } },
+    { 0xBE, { "CJNE", "R6", "#immed", "offset" } },
+    { 0xBF, { "CJNE", "R7", "#immed", "offset" } },
     { 0xC0, { "PUSH", "direct" } },
     { 0xC1, { "AJMP", "addr11" } },
     { 0xC2, { "CLR", "bit" } },
@@ -551,16 +615,16 @@ std::map<u8, std::vector<String>> op_code_signatures = {
     { 0xF3, { "MOVX", "@R1", "A" } },
     { 0xF4, { "CPL", "A" } },
     { 0xF5, { "MOV", "direct", "A" } },
-    { 0xF6, { "MOV", "@R0, A" } },
-    { 0xF7, { "MOV", "@R1, A" } },
-    { 0xF8, { "MOV", "R0, A" } },
-    { 0xF9, { "MOV", "R1, A" } },
-    { 0xFA, { "MOV", "R2, A" } },
-    { 0xFB, { "MOV", "R3, A" } },
-    { 0xFC, { "MOV", "R4, A" } },
-    { 0xFD, { "MOV", "R5, A" } },
-    { 0xFE, { "MOV", "R6, A" } },
-    { 0xFF, { "MOV", "R7, A" } },
+    { 0xF6, { "MOV", "@R0", "A" } },
+    { 0xF7, { "MOV", "@R1", "A" } },
+    { 0xF8, { "MOV", "R0", "A" } },
+    { 0xF9, { "MOV", "R1", "A" } },
+    { 0xFA, { "MOV", "R2", "A" } },
+    { 0xFB, { "MOV", "R3", "A" } },
+    { 0xFC, { "MOV", "R4", "A" } },
+    { 0xFD, { "MOV", "R5", "A" } },
+    { 0xFE, { "MOV", "R6", "A" } },
+    { 0xFF, { "MOV", "R7", "A" } },
 
 };
 
@@ -740,6 +804,284 @@ String get_decoded_instruction_string( Processor &processor, u16 code_addr ) {
     }
 
     return ret;
+}
+
+void substitute_command( String &str, size_t arg1_idx, size_t &arg2_idx, std::vector<String> &rev_sfr_names ) {
+    String arg1 = str.substr( arg1_idx, arg2_idx - arg1_idx - 1 );
+    String arg2 = str.substr( arg2_idx );
+
+    // First replace all numbers.
+    bool found_substitution = false;
+    if ( std::find( rev_sfr_names.begin(), rev_sfr_names.end(), arg1 ) == rev_sfr_names.end() && arg1 != "addr" &&
+         arg1 != "imm" ) {
+        // The first argument can't be an immediate value.
+        if ( arg1[0] == '/' ) {
+            str.replace( arg1_idx, arg1.size(), "/addr" );
+            arg2_idx -= arg1.size() - 5; // fix index
+        } else {
+            str.replace( arg1_idx, arg1.size(), "addr" );
+            arg2_idx -= arg1.size() - 4; // fix index
+        }
+        found_substitution = true;
+    }
+    if ( std::find( rev_sfr_names.begin(), rev_sfr_names.end(), arg2 ) == rev_sfr_names.end() && arg2 != "addr" &&
+         arg2 != "imm" ) {
+        if ( arg2[0] == '(' || arg2.find_first_not_of( "0123456789abcdef" ) != arg2.npos ) {
+            // Indirect or label
+            if ( arg2[0] == '/' ) {
+                str.replace( arg2_idx, arg2.size(), "/addr" );
+            } else {
+                str.replace( arg2_idx, arg2.size(), "addr" );
+            }
+        } else {
+            str.replace( arg2_idx, arg2.size(), "imm" );
+        }
+        found_substitution = true;
+    }
+
+    // Now replace the second parameter first.
+    if ( !found_substitution && arg2 != "addr" && arg2 != "imm" ) {
+        str.replace( arg2_idx, arg2.size(), "addr" );
+        found_substitution = true;
+    }
+
+    // Finally try to replace the first parameter.
+    if ( !found_substitution && arg1 != "addr" && arg1 != "imm" ) {
+        str.replace( arg1_idx, arg1.size(), "addr" );
+    }
+}
+
+void encode_hex_file( const std::vector<u8> &code, std::ostream &output ) {
+    size_t buf_idx = 0;
+    output << std::hex << std::setfill( '0' );
+    while ( buf_idx < code.size() ) {
+        u8 checksum = std::min<size_t>( 16, code.size() - buf_idx ) + ( buf_idx & 0xff ) + ( buf_idx >> 8 );
+        output << std::setw( 1 ) << ':' << std::setw( 2 ) << std::min<size_t>( 16, code.size() - buf_idx );
+        output << std::setw( 4 ) << buf_idx << "00" << std::setw( 2 );
+        for ( size_t i = 0; i < 16 && buf_idx < code.size(); i++ ) {
+            output << std::setw( 2 ) << static_cast<u16>( code[buf_idx] );
+            checksum += code[buf_idx];
+            buf_idx++;
+        }
+        output << std::setw( 2 ) << ( ( ~checksum + 1 ) & 0xff ) << '\n';
+    }
+    output << ":00000001ff\n";
+}
+
+String to_lower( const String &str ) {
+    String tmp;
+    tmp.reserve( str.size() );
+    for ( auto c : str )
+        tmp.push_back( tolower( c ) );
+    return tmp;
+}
+
+void compile_assembly( const String &code, std::ostream &output ) {
+    // Accepted signature:
+    // Commas between parameters are optional.
+    // All numbers are interpreted in base 16.
+    // Addresses are written in parenthesis or as SFRs.
+    // The first parameter is always an address.
+    // Some registers are used as indirection address when written in parenthesis.
+    //
+
+
+    // Prepare maps
+    std::map<String, u8> rev_op_codes;
+    std::vector<String> rev_sfr_names = { "a",     "b",    "psw",  "ip",   "ie",     "dpl",      "dph",    "dptr",
+                                          "p0",    "p1",   "p2",   "p3",   "pcon",   "scon",     "sbuf",   "tcon",
+                                          "t2con", "tmod", "tl0",  "tl1",  "tl2",    "th0",      "th1",    "th2",
+                                          "r0",    "r1",   "r2",   "r3",   "r4",     "r5",       "r6",     "r7",
+                                          "sp",    "(pc)", "(r0)", "(r1)", "(a+pc)", "(a+dptr)", "(dptr)", "c",
+                                          "p",     "ov",   "ac",   "f0",   "rs1",    "rs0",      "ud" };
+    std::map<String, u8> rev_sfr_map = { { "a", 0xE0 },    { "b", 0xF0 },    { "psw", 0xD0 },  { "ip", 0xB8 },
+                                         { "ie", 0xA8 },   { "dpl", 0x82 },  { "dph", 0x83 },  { "p0", 0x80 },
+                                         { "p1", 0x90 },   { "p2", 0xA0 },   { "p3", 0xB0 },   { "pcon", 0x87 },
+                                         { "scon", 0x98 }, { "sbuf", 0x99 }, { "tcon", 0x88 }, { "t2con", 0xC8 },
+                                         { "tmod", 0x89 }, { "tl0", 0x9A },  { "tl1", 0x9B },  { "tl2", 0xCC },
+                                         { "th0", 0x9C },  { "th1", 0x9D },  { "th2", 0xCD },  { "sp", 0x81 },
+                                         { "c", 0xD7 },    { "p", 0xD0 },    { "ov", 0xD2 },   { "ac", 0xD6 },
+                                         { "f0", 0xD5 },   { "rs1", 0xD4 },  { "rs0", 0xD3 },  { "ud", 0xD1 } };
+    auto unify_name = []( const String &str ) {
+        if ( str == "addr16" || str == "addr11" || str == "direct" || str == "offset" || str == "bit" ) {
+            return String( "addr" );
+        } else if ( str == "/bit" ) {
+            return String( "/addr" );
+        } else if ( str == "#immed" ) {
+            return String( "imm" );
+        } else if ( str[0] == '@' ) {
+            return '(' + str.substr( 1 ) + ')';
+        } else {
+            return str;
+        }
+    };
+    for ( auto &pair : op_code_signatures ) {
+        String key = pair.second[0];
+        if ( pair.second.size() > 1 )
+            key += " " + unify_name( pair.second[1] );
+        if ( pair.second.size() > 2 )
+            key += " " + unify_name( pair.second[2] );
+        rev_op_codes[to_lower( key )] = pair.first;
+    }
+
+    // Parse file.
+    // We iterate all instructions and match their structure against known commands. Using subsitutions we can catch
+    // pseudo-commands like "mov B 01", which is actually "mov f0 01".
+    size_t index = 0;
+    size_t line_no = 0;
+    std::map<String, std::vector<size_t>> label_slots16; // Slots that must be filled in afterwards (absolute, 16 bits).
+    std::map<String, std::vector<size_t>>
+        label_slots11; // Slots that must be filled in afterwards (absolute, 11 bits including the instruction).
+    std::map<String, std::vector<size_t>> label_slots8; // Slots that must be filled in afterwards (relative, 8 bits).
+    std::map<String, u16> label_targets; // The collected label positions.
+    std::vector<u8> hex; // The final machine code.
+    while ( index < code.size() ) {
+        String line = code.substr( index, code.find( "\n", index ) - index + 1 );
+        index += line.size();
+        line_no++;
+
+        // Sanitize the command.
+        if ( !line.empty() && line.back() == '\n' )
+            line.pop_back();
+        line = line.substr( 0, line.find( ";" ) );
+        if ( line.find( "," ) != line.npos )
+            line.replace( line.find( "," ), 1, " " );
+        if ( line.find( "\t" ) != line.npos )
+            line.replace( line.find( "\t" ), 1, " " );
+        while ( line.find( "  " ) != line.npos )
+            line.replace( line.find( "  " ), 2, " " );
+        while ( !line.empty() && line.find_last_of( " " ) == line.size() - 1 )
+            line.pop_back();
+        while ( line.find_first_of( " " ) == 0 )
+            line = line.substr( 1 );
+        line = to_lower( line );
+
+        if ( line.empty() )
+            continue;
+
+        if ( line.find( ":" ) != line.npos ) {
+            // Label
+
+            if ( line.find( ":" ) != line.size() - 1 )
+                log( "Invalid label syntax." );
+            line.pop_back();
+
+            label_targets[line] = hex.size();
+        } else {
+            // Normal command
+
+            size_t arg1_idx = line.find( " " ) + 1;
+            size_t arg2_idx = line.find( " ", arg1_idx ) + 1;
+
+            String real_arg1 = line.substr( arg1_idx, arg2_idx - arg1_idx - 1 );
+            String real_arg2 = line.substr( arg2_idx );
+
+            // Apply substitutions if necessary.
+            if ( rev_op_codes.find( line ) == rev_op_codes.end() ) {
+                substitute_command( line, arg1_idx, arg2_idx, rev_sfr_names );
+                if ( rev_op_codes.find( line ) == rev_op_codes.end() ) {
+                    substitute_command( line, arg1_idx, arg2_idx, rev_sfr_names );
+                    if ( rev_op_codes.find( line ) == rev_op_codes.end() ) {
+                        substitute_command( line, arg1_idx, arg2_idx, rev_sfr_names );
+                        if ( rev_op_codes.find( line ) == rev_op_codes.end() ) {
+                            log( "Unknown command/syntax at line " + to_string( line_no ) + "." );
+                        }
+                    }
+                }
+            }
+
+            // Translate into machine code.
+            auto signature = op_code_signatures[rev_op_codes[line]];
+            hex.push_back( rev_op_codes[line] );
+            if ( signature.size() > 1 ) {
+                if ( signature[1] == "addr16" ) {
+                    if ( real_arg1.find_first_not_of( "0123456789abcdef" ) == real_arg1.npos ) {
+                        // Is direct value
+                        u16 addr = stoi( real_arg1, 0, 16 );
+                        hex.push_back( ( addr >> 8 ) & 0xFF );
+                        hex.push_back( addr & 0xFF );
+                    } else {
+                        // Is label
+                        label_slots16[real_arg1].push_back( hex.size() );
+                        hex.push_back( 0 );
+                        hex.push_back( 0 );
+                    }
+                } else if ( signature[1] == "addr11" ) {
+                    if ( real_arg1.find_first_not_of( "0123456789abcdef" ) == real_arg1.npos ) {
+                        // Is direct value
+                        u16 addr = stoi( real_arg1, 0, 16 );
+                        hex.back() = ( hex.back() & 0x1F ) | ( ( ( addr >> 8 ) & 0x07 ) << 5 );
+                        hex.push_back( addr & 0xFF );
+                    } else {
+                        // Is label
+                        label_slots16[real_arg1].push_back( hex.size() - 1 );
+                        hex.push_back( 0 );
+                    }
+                } else {
+                    size_t i = 1;
+                    for ( auto arg : { real_arg1, real_arg2 } ) {
+                        if ( signature[i] == "direct" || signature[i] == "bit" || signature[i] == "/bit" ||
+                             signature[i] == "#immed" ) {
+                            i8 val;
+                            if ( rev_sfr_map.find( arg ) != rev_sfr_map.end() ) {
+                                // Translate SFR
+                                val = rev_sfr_map[arg];
+                            } else {
+                                if ( arg[0] == '(' )
+                                    arg = arg.substr( 1, arg.size() - 2 );
+                                val = static_cast<i8>( stoi( arg, 0, 16 ) ); // TODO test values > 127
+                            }
+                            hex.push_back( *reinterpret_cast<u8 *>( &val ) );
+                        } else if ( signature[i] == "offset" ) {
+                            if ( real_arg1.find_first_not_of( "0123456789abcdef" ) == real_arg1.npos ) {
+                                // Is direct value
+                                auto tmp = static_cast<i8>( stoi( arg, 0, 16 ) );
+                                hex.push_back( *reinterpret_cast<u8 *>( &tmp ) );
+                            } else {
+                                // Is label
+                                label_slots8[real_arg1].push_back( hex.size() );
+                                hex.push_back( op_code_sizes[rev_op_codes[line]] - i ); // Point to the next op code.
+                            }
+                        }
+                        i++;
+                    }
+                }
+            }
+        }
+    }
+
+    // Fill in label targets.
+    for ( auto &pair : label_slots8 ) {
+        auto target = label_targets[pair.first];
+        for ( auto &pos : pair.second ) {
+            // Relative offset
+            i16 rel_target = target - pos - hex[pos];
+            if ( rel_target > 127 || rel_target < -128 )
+                log( "Relative jump offset is too far." );
+            auto tmp = static_cast<i8>( rel_target );
+            hex[pos] = *reinterpret_cast<u8 *>( &tmp );
+        }
+    }
+    for ( auto &pair : label_slots11 ) {
+        auto target = label_targets[pair.first];
+        for ( auto &pos : pair.second ) {
+            // Relative jump
+            if ( ( target & 0xF800 ) != ( ( pos + 2 ) & 0xF800 ) )
+                log( "Relative jump is too far (not the same 2Ki-block)." );
+            hex[pos] = ( hex[pos] & 0x1F ) | ( ( ( target >> 8 ) & 0x07 ) << 5 );
+            hex[pos + 1] = target & 0xFF;
+        }
+    }
+    for ( auto &pair : label_slots16 ) {
+        auto target = label_targets[pair.first];
+        for ( auto &pos : pair.second ) {
+            // Absolute jump
+            hex[pos] = ( target >> 8 ) & 0xFF;
+            hex[pos + 1] = target & 0xFF;
+        }
+    }
+
+    encode_hex_file( hex, output );
 }
 
 void log( const String &str ) {
