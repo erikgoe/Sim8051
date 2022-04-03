@@ -50,7 +50,7 @@ std::map<u8, u8> op_code_sizes = {
     { 0xFC, 1 }, { 0xFD, 1 }, { 0xFE, 1 }, { 0xFF, 1 },
 };
 std::map<u8, std::vector<String>> op_code_signatures = {
-    { 0x00, { "NOP " } },
+    { 0x00, { "NOP" } },
     { 0x01, { "AJMP", "addr11" } },
     { 0x02, { "LJMP", "addr16" } },
     { 0x03, { "RR", "A" } },
@@ -491,13 +491,13 @@ String get_decoded_instruction_string( Processor &processor, u16 code_addr ) {
 
 /// Processes one iteration of the parameter substitution process, in order to get the closes matching instruction.
 void substitute_command( String &str, size_t arg1_idx, size_t &arg2_idx, std::vector<String> &rev_sfr_names ) {
-    String arg1 = str.substr( arg1_idx, arg2_idx - arg1_idx - 1 );
-    String arg2 = str.substr( arg2_idx );
+    String arg1 = arg1_idx == str.size()+1?"": str.substr( arg1_idx, arg2_idx - arg1_idx - 1 );
+    String arg2 = arg2_idx == str.size()+1?"": str.substr( arg2_idx );
 
     // First replace all numbers.
     bool found_substitution = false;
     if ( std::find( rev_sfr_names.begin(), rev_sfr_names.end(), arg1 ) == rev_sfr_names.end() && arg1 != "addr" &&
-         arg1 != "imm" ) {
+         arg1 != "imm" && !arg1.empty() ) {
         // The first argument can't be an immediate value.
         if ( arg1[0] == '/' ) {
             str.replace( arg1_idx, arg1.size(), "/addr" );
@@ -509,7 +509,7 @@ void substitute_command( String &str, size_t arg1_idx, size_t &arg2_idx, std::ve
         found_substitution = true;
     }
     if ( std::find( rev_sfr_names.begin(), rev_sfr_names.end(), arg2 ) == rev_sfr_names.end() && arg2 != "addr" &&
-         arg2 != "imm" ) {
+         arg2 != "imm" && !arg2.empty() ) {
         if ( arg2[0] == '(' || arg2.find_first_not_of( "0123456789abcdef" ) != arg2.npos ) {
             // Indirect or label
             if ( arg2[0] == '/' ) {
@@ -524,13 +524,13 @@ void substitute_command( String &str, size_t arg1_idx, size_t &arg2_idx, std::ve
     }
 
     // Now replace the second parameter first.
-    if ( !found_substitution && arg2 != "addr" && arg2 != "imm" ) {
+    if ( !found_substitution && arg2 != "addr" && arg2 != "imm" && !arg2.empty() ) {
         str.replace( arg2_idx, arg2.size(), "addr" );
         found_substitution = true;
     }
 
     // Finally try to replace the first parameter.
-    if ( !found_substitution && arg1 != "addr" && arg1 != "imm" ) {
+    if ( !found_substitution && arg1 != "addr" && arg1 != "imm" && !arg1.empty() ) {
         str.replace( arg1_idx, arg1.size(), "addr" );
     }
 }
@@ -656,11 +656,12 @@ void compile_assembly( const String &code, std::ostream &output ) {
         } else {
             // Normal command
 
-            size_t arg1_idx = line.find( " " ) + 1;
-            size_t arg2_idx = line.find( " ", arg1_idx ) + 1;
+            size_t arg1_idx = line.find( " " ) == line.npos ? line.size() + 1 : line.find( " " ) + 1;
+            size_t arg2_idx =
+                line.find( " ", arg1_idx ) == line.npos ? line.size() + 1 : line.find( " ", arg1_idx ) + 1;
 
-            String real_arg1 = line.substr( arg1_idx, arg2_idx - arg1_idx - 1 );
-            String real_arg2 = line.substr( arg2_idx );
+            String real_arg1 = arg1_idx == line.size() + 1 ? "" : line.substr( arg1_idx, arg2_idx - arg1_idx - 1 );
+            String real_arg2 = arg2_idx == line.size() + 1 ? "" : line.substr( arg2_idx );
 
             // Apply substitutions if necessary.
             if ( rev_op_codes.find( line ) == rev_op_codes.end() ) {
@@ -705,7 +706,10 @@ void compile_assembly( const String &code, std::ostream &output ) {
                     }
                 } else {
                     size_t i = 1;
-                    auto list = { real_arg1, real_arg2 };
+                    std::vector<String> list = { real_arg1 };
+                    if ( !real_arg2.empty() )
+                        list.push_back( real_arg2 );
+
                     if ( rev_op_codes[line] == 0x85 )
                         list = { real_arg2, real_arg1 }; // Swap parameters
                     for ( auto arg : list ) {
