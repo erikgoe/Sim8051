@@ -264,14 +264,18 @@ int main() {
 
             should_load |= ImGui::Button( "Load" );
             ImGui::SameLine();
+            bool should_save = ImGui::Button( "Save" );
+            ImGui::SameLine();
             bool should_compile = ImGui::Button( "Compile" );
 
             should_compile |= ImGui::InputTextMultiline( "##content", &editor_content, ImVec2( -FLT_MIN, -FLT_MIN ),
                                                          ImGuiInputTextFlags_EnterReturnsTrue );
+            should_save |= should_compile;
 
             if ( should_load ) {
                 std::ifstream file( editor_asm_filename );
                 String tmp;
+                editor_content.clear();
                 while ( std::getline( file, tmp ) )
                     editor_content += tmp + '\n';
             }
@@ -295,10 +299,16 @@ int main() {
                         decode_instructions( *processor, op_code_indices );
                 }
             }
+
+            if ( should_save ) {
+                std::ofstream file( editor_asm_filename );
+                file << editor_content;
+                file.close();
+            }
         }
         ImGui::End();
 
-        //ImGui::ShowDemoWindow();
+        // ImGui::ShowDemoWindow();
 
         ImGui::EndFrame();
 
