@@ -310,6 +310,7 @@ std::map<u8, std::vector<String>> op_code_signatures = {
 };
 
 void decode_instructions( const Processor &processor, std::vector<u16> &op_code_indices ) {
+    op_code_indices.clear();
     size_t idx = 0;
     while ( idx < processor.text.size() ) {
         op_code_indices.push_back( idx );
