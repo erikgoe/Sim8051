@@ -204,6 +204,7 @@ void Processor::do_cycle() {
             if ( ls_nibble == 4 ) {
                 a++;
                 set_bit_to( parity_addr, parity_of_byte( a ) );
+                inc_pc = 1;
             } else {
                 value++;
             }
@@ -212,6 +213,7 @@ void Processor::do_cycle() {
             if ( ls_nibble == 4 ) {
                 a--;
                 set_bit_to( parity_addr, parity_of_byte( a ) );
+                inc_pc = 1;
             } else {
                 value--;
             }
@@ -267,6 +269,7 @@ void Processor::do_cycle() {
                     set_bit_to( overflow_addr, false );
                     set_bit_to( parity_addr, parity_of_byte( a ) );
                 }
+                inc_pc = 1;
             } else if ( ls_nibble == 5 ) {
                 direct_acc( arg2 ) = *value; // Swapped parameters!
                 inc_pc = 3;
@@ -292,8 +295,11 @@ void Processor::do_cycle() {
                 b = prod >> 8;
                 set_bit_to( overflow_addr, prod > 0xff );
                 set_bit_to( parity_addr, parity_of_byte( a ) );
+                inc_pc = 1;
             } else if ( ls_nibble == 5 ) {
                 // Reserved instruction
+                log( "Executed reserved instruction A5!" );
+                inc_pc = 1;
             } else {
                 *value = direct_acc( arg1 );
                 inc_pc = 2;
@@ -322,11 +328,13 @@ void Processor::do_cycle() {
             if ( ls_nibble == 4 ) {
                 // Actually encodes swap A nibbles
                 a = ( ( a & 0xf ) << 4 ) | ( ( a & 0xf0 ) >> 4 );
+                inc_pc = 1;
             } else {
                 auto tmp = *value;
                 *value = a;
                 a = tmp;
                 set_bit_to( parity_addr, parity_of_byte( a ) );
+                inc_pc = ls_nibble==5?2:1;
             }
             break;
         case 0xD: // DJNZ operand,offset
@@ -343,11 +351,13 @@ void Processor::do_cycle() {
                     a += 0x60;
                 }
                 set_bit_to( parity_addr, parity_of_byte( a ) );
+                inc_pc = 1;
             } else if ( ls_nibble == 6 || ls_nibble == 7 ) {
                 // Actually encodes XCHD
                 u8 tmp = *value & 0xf;
                 *value = ( *value & 0xf0 ) | ( a & 0xf );
                 a = ( a & 0xf0 ) | tmp;
+                inc_pc = 1;
             } else if ( ls_nibble == 5 ) {
                 pc += 3; // Documentation specifies 2, but 3 makes more sense.
                 ( *value )--;
@@ -366,6 +376,7 @@ void Processor::do_cycle() {
             if ( ls_nibble == 4 ) {
                 // Actually encodes CLR A
                 a = 0;
+                inc_pc = 1;
             } else {
                 a = *value;
                 set_bit_to( parity_addr, parity_of_byte( a ) );
@@ -375,6 +386,7 @@ void Processor::do_cycle() {
             if ( ls_nibble == 4 ) {
                 // Actually encodes CPL A
                 a = ~a;
+                inc_pc = 1;
             } else {
                 *value = a;
                 set_bit_to( parity_addr, parity_of_byte( a ) );
