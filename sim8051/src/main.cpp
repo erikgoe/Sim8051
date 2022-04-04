@@ -138,7 +138,8 @@ int main() {
             processor->reset();
         }
         ImGui::Spacing();
-        if ( ImGui::InputText( "Hex file", &hex_filename ) | ImGui::Button( "Load" ) ) {
+        if ( ImGui::InputText( "Hex file", &hex_filename, ImGuiInputTextFlags_EnterReturnsTrue ) |
+             ImGui::Button( "Load" ) ) {
             steps_per_frame = 0;
             max_speed = false;
             if ( processor->load_hex_code( hex_filename ) )
@@ -260,7 +261,7 @@ int main() {
         ImGui::Begin( "Editor" );
         {
             bool should_load = ImGui::InputText( "In file", &editor_asm_filename );
-            ImGui::InputText( "Out dir file", &editor_hex_file_dir );
+            ImGui::InputText( "Out dir", &editor_hex_file_dir );
 
             should_load |= ImGui::Button( "Load" );
             ImGui::SameLine();
@@ -278,6 +279,12 @@ int main() {
                 editor_content.clear();
                 while ( std::getline( file, tmp ) )
                     editor_content += tmp + '\n';
+            }
+
+            if ( should_save ) {
+                std::ofstream file( editor_asm_filename );
+                file << editor_content;
+                file.close();
             }
 
             if ( should_compile ) {
@@ -298,12 +305,6 @@ int main() {
                     if ( processor->load_hex_code( hex_filename ) )
                         decode_instructions( *processor, op_code_indices );
                 }
-            }
-
-            if ( should_save ) {
-                std::ofstream file( editor_asm_filename );
-                file << editor_content;
-                file.close();
             }
         }
         ImGui::End();

@@ -309,17 +309,17 @@ void Processor::do_cycle() {
             if ( ls_nibble == 4 ) {
                 pc += 3;
                 if ( a != arg1 )
-                    pc += *reinterpret_cast<i8 *>( second_operand);
+                    pc += *reinterpret_cast<i8 *>( second_operand );
                 set_bit_to( carry_addr, a < arg1 );
             } else if ( ls_nibble == 5 ) {
                 pc += 3;
                 if ( a != *value )
-                    pc += *reinterpret_cast<i8 *>( second_operand);
+                    pc += *reinterpret_cast<i8 *>( second_operand );
                 set_bit_to( carry_addr, a < *value );
             } else {
                 pc += 3;
                 if ( *value != arg1 )
-                    pc += *reinterpret_cast<i8 *>( second_operand);
+                    pc += *reinterpret_cast<i8 *>( second_operand );
                 set_bit_to( carry_addr, *value < arg1 );
             }
             inc_pc = 0;
@@ -362,13 +362,13 @@ void Processor::do_cycle() {
                 pc += 3; // Documentation specifies 2, but 3 makes more sense.
                 ( *value )--;
                 if ( *value != 0 )
-                    pc += *reinterpret_cast<i8 *>( second_operand);
+                    pc += *reinterpret_cast<i8 *>( second_operand );
                 inc_pc = 0;
             } else {
                 pc += 2;
                 ( *value )--;
                 if ( *value != 0 )
-                    pc += *reinterpret_cast<i8 *>( &arg1);
+                    pc += *reinterpret_cast<i8 *>( &arg1 );
                 inc_pc = 0;
             }
             break;
@@ -421,49 +421,49 @@ void Processor::do_cycle() {
                     pc += 3;
                     if ( is_bit_set( arg1 ) ) {
                         set_bit_to( arg1, false );
-                        pc += *reinterpret_cast<i8 *>( &arg2);
+                        pc += *reinterpret_cast<i8 *>( &arg2 );
                     }
                     inc_pc = 0;
                     break;
                 case 0x2: // JB bit,offset
                     pc += 3;
                     if ( is_bit_set( arg1 ) ) {
-                        pc += *reinterpret_cast<i8 *>( &arg2);
+                        pc += *reinterpret_cast<i8 *>( &arg2 );
                     }
                     inc_pc = 0;
                     break;
                 case 0x3: // JNB bit,offset
                     pc += 3;
                     if ( !is_bit_set( arg1 ) ) {
-                        pc += *reinterpret_cast<i8 *>( &arg2);
+                        pc += *reinterpret_cast<i8 *>( &arg2 );
                     }
                     inc_pc = 0;
                     break;
                 case 0x4: // JC offset
                     pc += 2;
                     if ( is_bit_set( carry_addr ) ) {
-                        pc += *reinterpret_cast<i8 *>( &arg1);
+                        pc += *reinterpret_cast<i8 *>( &arg1 );
                     }
                     inc_pc = 0;
                     break;
                 case 0x5: // JNC offset
                     pc += 2;
                     if ( !is_bit_set( carry_addr ) ) {
-                        pc += *reinterpret_cast<i8 *>( &arg1);
+                        pc += *reinterpret_cast<i8 *>( &arg1 );
                     }
                     inc_pc = 0;
                     break;
                 case 0x6: // JZ offset
                     pc += 2;
                     if ( a == 0 ) {
-                        pc += *reinterpret_cast<i8 *>( &arg1);
+                        pc += *reinterpret_cast<i8 *>( &arg1 );
                     }
                     inc_pc = 0;
                     break;
                 case 0x7: // JNZ offset
                     pc += 2;
                     if ( a != 0 ) {
-                        pc += *reinterpret_cast<i8 *>( &arg1);
+                        pc += *reinterpret_cast<i8 *>( &arg1 );
                     }
                     inc_pc = 0;
                     break;
@@ -516,17 +516,17 @@ void Processor::do_cycle() {
                     sp++;
                     iram[sp] = pc & 0xff;
                     sp++;
-                    iram[sp] = pc & 0xff00;
+                    iram[sp] = ( pc & 0xff00 ) >> 8;
                     pc = ( static_cast<u16>( arg1 ) << 8 ) | arg2;
                     inc_pc = 0;
                     break;
                 case 0x2: // RET
-                    pc = ( static_cast<u16>( iram[sp - 1] ) << 8 ) | iram[sp];
+                    pc = ( static_cast<u16>( iram[sp] ) << 8 ) | iram[sp - 1];
                     sp -= 2;
                     inc_pc = 0;
                     break;
                 case 0x3: // RETI
-                    pc = ( static_cast<u16>( iram[sp - 1] ) << 8 ) | iram[sp];
+                    pc = ( static_cast<u16>( iram[sp] ) << 8 ) | iram[sp - 1];
                     sp -= 2;
                     inc_pc = 0;
                     // TODO restore interrupt logic.
