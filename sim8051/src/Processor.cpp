@@ -206,7 +206,7 @@ void Processor::do_cycle() {
                 set_bit_to( parity_addr, parity_of_byte( a ) );
                 inc_pc = 1;
             } else {
-                value++;
+                ( *value )++;
             }
             break;
         case 0x1: // DEC operand
@@ -215,7 +215,7 @@ void Processor::do_cycle() {
                 set_bit_to( parity_addr, parity_of_byte( a ) );
                 inc_pc = 1;
             } else {
-                value--;
+                ( *value )--;
             }
             break;
         case 0x2: // ADD A,operand
@@ -309,17 +309,17 @@ void Processor::do_cycle() {
             if ( ls_nibble == 4 ) {
                 pc += 3;
                 if ( a != arg1 )
-                    pc += *second_operand;
+                    pc += *reinterpret_cast<i8 *>( second_operand);
                 set_bit_to( carry_addr, a < arg1 );
             } else if ( ls_nibble == 5 ) {
                 pc += 3;
                 if ( a != *value )
-                    pc += *second_operand;
+                    pc += *reinterpret_cast<i8 *>( second_operand);
                 set_bit_to( carry_addr, a < *value );
             } else {
                 pc += 3;
                 if ( *value != arg1 )
-                    pc += *second_operand;
+                    pc += *reinterpret_cast<i8 *>( second_operand);
                 set_bit_to( carry_addr, *value < arg1 );
             }
             inc_pc = 0;
@@ -334,7 +334,7 @@ void Processor::do_cycle() {
                 *value = a;
                 a = tmp;
                 set_bit_to( parity_addr, parity_of_byte( a ) );
-                inc_pc = ls_nibble==5?2:1;
+                inc_pc = ls_nibble == 5 ? 2 : 1;
             }
             break;
         case 0xD: // DJNZ operand,offset
@@ -362,13 +362,13 @@ void Processor::do_cycle() {
                 pc += 3; // Documentation specifies 2, but 3 makes more sense.
                 ( *value )--;
                 if ( *value != 0 )
-                    pc += *second_operand;
+                    pc += *reinterpret_cast<i8 *>( second_operand);
                 inc_pc = 0;
             } else {
                 pc += 2;
                 ( *value )--;
                 if ( *value != 0 )
-                    pc += arg1;
+                    pc += *reinterpret_cast<i8 *>( &arg1);
                 inc_pc = 0;
             }
             break;
@@ -421,54 +421,54 @@ void Processor::do_cycle() {
                     pc += 3;
                     if ( is_bit_set( arg1 ) ) {
                         set_bit_to( arg1, false );
-                        pc += arg2;
+                        pc += *reinterpret_cast<i8 *>( &arg2);
                     }
                     inc_pc = 0;
                     break;
                 case 0x2: // JB bit,offset
                     pc += 3;
                     if ( is_bit_set( arg1 ) ) {
-                        pc += arg2;
+                        pc += *reinterpret_cast<i8 *>( &arg2);
                     }
                     inc_pc = 0;
                     break;
                 case 0x3: // JNB bit,offset
                     pc += 3;
                     if ( !is_bit_set( arg1 ) ) {
-                        pc += arg2;
+                        pc += *reinterpret_cast<i8 *>( &arg2);
                     }
                     inc_pc = 0;
                     break;
                 case 0x4: // JC offset
                     pc += 2;
                     if ( is_bit_set( carry_addr ) ) {
-                        pc += arg1;
+                        pc += *reinterpret_cast<i8 *>( &arg1);
                     }
                     inc_pc = 0;
                     break;
                 case 0x5: // JNC offset
                     pc += 2;
                     if ( !is_bit_set( carry_addr ) ) {
-                        pc += arg1;
+                        pc += *reinterpret_cast<i8 *>( &arg1);
                     }
                     inc_pc = 0;
                     break;
                 case 0x6: // JZ offset
                     pc += 2;
                     if ( a == 0 ) {
-                        pc += arg1;
+                        pc += *reinterpret_cast<i8 *>( &arg1);
                     }
                     inc_pc = 0;
                     break;
                 case 0x7: // JNZ offset
                     pc += 2;
                     if ( a != 0 ) {
-                        pc += arg1;
+                        pc += *reinterpret_cast<i8 *>( &arg1);
                     }
                     inc_pc = 0;
                     break;
                 case 0x8: // SJMP offset
-                    pc += 2 + arg1;
+                    pc += 2 + *reinterpret_cast<i8 *>( &arg1 );
                     inc_pc = 0;
                     break;
                 case 0x9: // MOV DPTR,#data16

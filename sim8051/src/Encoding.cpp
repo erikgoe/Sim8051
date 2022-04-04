@@ -394,9 +394,10 @@ String get_decoded_instruction_string( Processor &processor, u16 code_addr ) {
     u8 operand_offset = 1;
     for ( size_t i = 1; i < signature.size(); i++ ) {
         // TODO reverse operand order of 0x85 move instruction
-        bool two_byte_operand = size > signature.size() || ( size == 3 && i == 2 && operand_offset == 1 );
+        bool two_byte_operand =
+            size > signature.size() || ( size == 3 && i == 2 && operand_offset == 1 && signature.front() != "CJNE" );
         auto &operand = signature[i];
-        if ( i == 2 )
+        if ( i >= 2 )
             ret += ", ";
         ret += operand;
 
@@ -434,6 +435,8 @@ String get_decoded_instruction_string( Processor &processor, u16 code_addr ) {
             operand_offset++;
         } else if ( operand == "direct" ) {
             auto addr = processor.text[code_addr + operand_offset];
+            if ( code == 0x85 )
+                addr = processor.text[code_addr + ( operand_offset == 1 ? 2 : 1 )]; // swap parameters
             String special = sfr_name( addr );
             ret += " (&" + ( special != "" ? special : to_hex_str( addr ) ) + "; " +
                    to_hex_str( processor.direct_acc( addr ) ) + ")";
@@ -450,14 +453,34 @@ String get_decoded_instruction_string( Processor &processor, u16 code_addr ) {
         } else if ( operand == "bit" || operand == "/bit" ) {
             u8 bit_addr = processor.text[code_addr + operand_offset];
             if ( bit_addr < 0x80 ) {
-                ret += " (IRAM " + to_hex_str( ( bit_addr & 0b11111000 ) >> 3 ) + "." +
-                       to_hex_str( ( bit_addr & 0b111 ) ) + "; " + ( processor.is_bit_set( bit_addr ) ? "1" : "0" ) +
-                       ")";
+                ret += " (IRAM " + to_hex_str( bit_addr & 0b11111000 ) + "." +
+                       to_hex_str( bit_addr & 0b111 ).substr( 1 ) + "; " +
+                       ( processor.is_bit_set( bit_addr ) ? "1" : "0" ) + ")";
             } else {
-                String special = sfr_name( ( bit_addr & 0b11111000 ) >> 3 );
-                ret += " (" + ( special == "" ? to_hex_str( ( bit_addr & 0b11111000 ) >> 3 ) : special ) + "." +
-                       to_hex_str( ( bit_addr & 0b111 ) ) + "; " + ( processor.is_bit_set( bit_addr ) ? "1" : "0" ) +
-                       ")";
+                String special = sfr_name( bit_addr & 0b11111000 );
+                bool very_special = true;
+                if ( bit_addr == 0xD0 ) {
+                    special = "P";
+                } else if ( bit_addr == 0xD1 ) {
+                    special = "UD";
+                } else if ( bit_addr == 0xD2 ) {
+                    special = "OV";
+                } else if ( bit_addr == 0xD3 ) {
+                    special = "RS0";
+                } else if ( bit_addr == 0xD4 ) {
+                    special = "RS1";
+                } else if ( bit_addr == 0xD5 ) {
+                    special = "F0";
+                } else if ( bit_addr == 0xD6 ) {
+                    special = "AC";
+                } else if ( bit_addr == 0xD7 ) {
+                    special = "C";
+                } else {
+                    very_special = false;
+                }
+                ret += " (" + ( special == "" ? to_hex_str( bit_addr & 0b11111000 ) : special ) +
+                       ( very_special ? "" : "." + to_hex_str( bit_addr & 0b111 ).substr( 1 ) ) + "; " +
+                       ( processor.is_bit_set( bit_addr ) ? "1" : "0" ) + ")";
             }
             operand_offset++;
         } else if ( operand == "C" ) {
@@ -491,20 +514,26 @@ String get_decoded_instruction_string( Processor &processor, u16 code_addr ) {
 
 /// Processes one iteration of the parameter substitution process, in order to get the closes matching instruction.
 void substitute_command( String &str, size_t arg1_idx, size_t &arg2_idx, std::vector<String> &rev_sfr_names ) {
-    String arg1 = arg1_idx == str.size()+1?"": str.substr( arg1_idx, arg2_idx - arg1_idx - 1 );
-    String arg2 = arg2_idx == str.size()+1?"": str.substr( arg2_idx );
+    String arg1 = arg1_idx == str.size() + 1 ? "" : str.substr( arg1_idx, arg2_idx - arg1_idx - 1 );
+    String arg2 = arg2_idx == str.size() + 1 ? "" : str.substr( arg2_idx );
+    bool is_cjne = str.substr( 0, str.find( " " ) ) == "cjne";
 
     // First replace all numbers.
     bool found_substitution = false;
     if ( std::find( rev_sfr_names.begin(), rev_sfr_names.end(), arg1 ) == rev_sfr_names.end() && arg1 != "addr" &&
          arg1 != "imm" && !arg1.empty() ) {
-        // The first argument can't be an immediate value.
-        if ( arg1[0] == '/' ) {
-            str.replace( arg1_idx, arg1.size(), "/addr" );
-            arg2_idx -= arg1.size() - 5; // fix index
+        if ( !is_cjne || arg1[0] == '(' || arg1.find_first_not_of( "0123456789abcdef" ) != arg1.npos ) {
+            // The first argument can't be an immediate value (except for cjne).
+            if ( arg1[0] == '/' ) {
+                str.replace( arg1_idx, arg1.size(), "/addr" );
+                arg2_idx -= arg1.size() - 5; // fix index
+            } else {
+                str.replace( arg1_idx, arg1.size(), "addr" );
+                arg2_idx -= arg1.size() - 4; // fix index
+            }
         } else {
-            str.replace( arg1_idx, arg1.size(), "addr" );
-            arg2_idx -= arg1.size() - 4; // fix index
+            str.replace( arg1_idx, arg1.size(), "imm" );
+            arg2_idx += 3 - arg1.size();
         }
         found_substitution = true;
     }
@@ -523,8 +552,17 @@ void substitute_command( String &str, size_t arg1_idx, size_t &arg2_idx, std::ve
         found_substitution = true;
     }
 
+    bool replace_second_param_first = true;
+    if ( arg1 != "addr" && arg1 != "imm" ) {
+        String op = arg1_idx == str.size() + 1 ? str : str.substr( 0, arg1_idx - 1 );
+        if ( op == "mov" && arg2 == "c" ) {
+            // OP 0x92
+            replace_second_param_first = false;
+        }
+    }
+
     // Now replace the second parameter first.
-    if ( !found_substitution && arg2 != "addr" && arg2 != "imm" && !arg2.empty() ) {
+    if ( replace_second_param_first && !found_substitution && arg2 != "addr" && arg2 != "imm" && !arg2.empty() ) {
         str.replace( arg2_idx, arg2.size(), "addr" );
         found_substitution = true;
     }
@@ -569,6 +607,12 @@ void compile_assembly( const String &code, std::ostream &output ) {
     // Addresses are written in parenthesis or as SFRs.
     // The first parameter is always an address.
     // Some registers are used as indirection address when written in parenthesis.
+    // Keep in mind that assembler and disassembler are distinct systems, i. e. the syntax and registers of one don't
+    // always apply to the other.
+    // Bits can't be accessed with syntax "A.1". But some common bits (like C) can be used (see table rev_sfr_map
+    // below) directly.
+    // You will most likely need to wrap bit addresses in parenthesis, as they are treated like normal addresses and
+    // thus need indirection.
     //
 
 
@@ -607,6 +651,8 @@ void compile_assembly( const String &code, std::ostream &output ) {
             key += " " + unify_name( pair.second[1] );
         if ( pair.second.size() > 2 )
             key += " " + unify_name( pair.second[2] );
+        if ( pair.second.size() > 3 )
+            key += " " + unify_name( pair.second[3] );
         rev_op_codes[to_lower( key )] = pair.first;
     }
 
@@ -630,9 +676,9 @@ void compile_assembly( const String &code, std::ostream &output ) {
         if ( !line.empty() && line.back() == '\n' )
             line.pop_back();
         line = line.substr( 0, line.find( ";" ) );
-        if ( line.find( "," ) != line.npos )
+        while ( line.find( "," ) != line.npos )
             line.replace( line.find( "," ), 1, " " );
-        if ( line.find( "\t" ) != line.npos )
+        while ( line.find( "\t" ) != line.npos )
             line.replace( line.find( "\t" ), 1, " " );
         while ( line.find( "  " ) != line.npos )
             line.replace( line.find( "  " ), 2, " " );
@@ -652,6 +698,8 @@ void compile_assembly( const String &code, std::ostream &output ) {
                 log( "Invalid label syntax." );
             line.pop_back();
 
+            if ( label_targets.find( line ) != label_targets.end() )
+                log( "Found label '" + line + "' multiple times (line " + to_string( line_no ) + ")" );
             label_targets[line] = hex.size();
         } else {
             // Normal command
@@ -659,6 +707,11 @@ void compile_assembly( const String &code, std::ostream &output ) {
             size_t arg1_idx = line.find( " " ) == line.npos ? line.size() + 1 : line.find( " " ) + 1;
             size_t arg2_idx =
                 line.find( " ", arg1_idx ) == line.npos ? line.size() + 1 : line.find( " ", arg1_idx ) + 1;
+            if ( arg1_idx != line.size() + 1 && line.substr( 0, arg1_idx - 1 ) == "cjne" ) {
+                // Has three parameters, so the indices should be adjusted.
+                arg1_idx = arg2_idx;
+                arg2_idx = line.find( " ", arg1_idx ) + 1;
+            }
 
             String real_arg1 = arg1_idx == line.size() + 1 ? "" : line.substr( arg1_idx, arg2_idx - arg1_idx - 1 );
             String real_arg2 = arg2_idx == line.size() + 1 ? "" : line.substr( arg2_idx );
@@ -678,8 +731,9 @@ void compile_assembly( const String &code, std::ostream &output ) {
             }
 
             // Translate into machine code.
-            auto signature = op_code_signatures[rev_op_codes[line]];
-            hex.push_back( rev_op_codes[line] );
+            auto opcode = rev_op_codes[line];
+            auto signature = op_code_signatures[opcode];
+            hex.push_back( opcode );
             if ( signature.size() > 1 ) {
                 if ( signature[1] == "addr16" ) {
                     if ( real_arg1.find_first_not_of( "0123456789abcdef" ) == real_arg1.npos ) {
@@ -701,39 +755,55 @@ void compile_assembly( const String &code, std::ostream &output ) {
                         hex.push_back( addr & 0xFF );
                     } else {
                         // Is label
-                        label_slots16[real_arg1].push_back( hex.size() - 1 );
+                        label_slots11[real_arg1].push_back( hex.size() - 1 );
                         hex.push_back( 0 );
                     }
                 } else {
                     size_t i = 1;
+                    if ( opcode >= 0xB4 && opcode <= 0xBF )
+                        i = 2; // cjne with three parameters.
                     std::vector<String> list = { real_arg1 };
                     if ( !real_arg2.empty() )
                         list.push_back( real_arg2 );
 
-                    if ( rev_op_codes[line] == 0x85 )
+                    if ( opcode == 0x85 )
                         list = { real_arg2, real_arg1 }; // Swap parameters
                     for ( auto arg : list ) {
                         if ( signature[i] == "direct" || signature[i] == "bit" || signature[i] == "/bit" ||
                              signature[i] == "#immed" ) {
                             i8 val;
+                            if ( arg[0] == '/' )
+                                arg = arg.substr( 1 );
                             if ( rev_sfr_map.find( arg ) != rev_sfr_map.end() ) {
                                 // Translate SFR
                                 val = rev_sfr_map[arg];
                             } else {
                                 if ( arg[0] == '(' )
                                     arg = arg.substr( 1, arg.size() - 2 );
-                                val = static_cast<i8>( stoi( arg, 0, 16 ) ); // TODO test values > 127
+                                if ( opcode == 0x90 ) {
+                                    // "mov dptr" with two bytes
+                                    hex.push_back( stoi( arg.substr( 0, 2 ), 0, 16 ) );
+                                    hex.push_back( stoi( arg.substr( 2 ), 0, 16 ) );
+                                } else {
+                                    // Only one byte
+                                    val = static_cast<i8>( stoi( arg, 0, 16 ) );
+                                }
                             }
-                            hex.push_back( *reinterpret_cast<u8 *>( &val ) );
+                            if ( opcode != 0x90 ) // Already inserted (see above).
+                                hex.push_back( *reinterpret_cast<u8 *>( &val ) );
                         } else if ( signature[i] == "offset" ) {
-                            if ( real_arg1.find_first_not_of( "0123456789abcdef" ) == real_arg1.npos ) {
+                            if ( arg.find_first_not_of( "0123456789abcdef" ) == arg.npos ) {
                                 // Is direct value
                                 auto tmp = static_cast<i8>( stoi( arg, 0, 16 ) );
                                 hex.push_back( *reinterpret_cast<u8 *>( &tmp ) );
                             } else {
                                 // Is label
-                                label_slots8[real_arg1].push_back( hex.size() );
-                                hex.push_back( op_code_sizes[rev_op_codes[line]] - i ); // Point to the next op code.
+                                label_slots8[arg].push_back( hex.size() );
+                                size_t next_op_offset = i;
+                                if ( ( opcode >= 0xB4 && opcode <= 0xBF ) || ( opcode >= 0xD8 && opcode <= 0xDF ) )
+                                    next_op_offset--; // cjne and djne have one implicit parameter
+
+                                hex.push_back( op_code_sizes[opcode] - next_op_offset ); // Point to the next op code.
                             }
                         }
                         i++;
