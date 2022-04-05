@@ -685,18 +685,22 @@ void compile_assembly( const String &code, std::ostream &output ) {
         // Sanitize the command.
         if ( !line.empty() && line.back() == '\n' )
             line.pop_back();
-        line = line.substr( 0, line.find( ";" ) );
-        while ( line.find( "," ) != line.npos )
-            line.replace( line.find( "," ), 1, " " );
-        while ( line.find( "\t" ) != line.npos )
-            line.replace( line.find( "\t" ), 1, " " );
-        while ( line.find( "  " ) != line.npos )
-            line.replace( line.find( "  " ), 2, " " );
-        while ( !line.empty() && line.find_last_of( " " ) == line.size() - 1 )
-            line.pop_back();
         while ( line.find_first_of( " " ) == 0 )
             line = line.substr( 1 );
-        line = to_lower( line );
+        if ( line.find( "str " ) != 0 ) {
+            line = line.substr( 0, line.find( ";" ) );
+            while ( line.find( "," ) != line.npos )
+                line.replace( line.find( "," ), 1, " " );
+            while ( line.find( "\t" ) != line.npos )
+                line.replace( line.find( "\t" ), 1, " " );
+            while ( line.find( "  " ) != line.npos )
+                line.replace( line.find( "  " ), 2, " " );
+            while ( !line.empty() && line.find_last_of( " " ) == line.size() - 1 )
+                line.pop_back();
+            while ( line.find_first_of( " " ) == 0 ) // Yes again...
+                line = line.substr( 1 );
+            line = to_lower( line );
+        }
 
         if ( line.empty() )
             continue;
@@ -715,6 +719,20 @@ void compile_assembly( const String &code, std::ostream &output ) {
                 successful = false;
             }
             label_targets[line] = hex.size();
+        } else if ( line.find( ".data " ) == 0 ) {
+            // Inline byte data
+            for ( size_t i = 6; i < line.size(); i += 2 ) {
+                auto sub = line.substr( i, 2 );
+                u8 val = stoi( sub, 0, 16 );
+                if ( sub != to_hex_str( val, sub.size() * 4 ) )
+                    log( "Warning: possible misinterpretation at line " + to_string( line_no ) );
+                hex.push_back( val );
+            }
+        } else if ( line.find( ".str " ) == 0 ) {
+            // Inline string data
+            for ( size_t i = 5; i < line.size(); i++ ) {
+                hex.push_back( line[i] );
+            }
         } else {
             // Normal command
 
