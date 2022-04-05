@@ -2,6 +2,9 @@
 #include "sim8051/Processor.hpp"
 #include "sim8051/Encoding.hpp"
 
+std::deque<String> global_log;
+sf::Clock last_global_log_timer;
+
 // The main loop, including some stuff like scrolling
 int main() {
     // Initialize all the stuff
@@ -16,6 +19,8 @@ int main() {
         return -1;
     }
     sf::Clock timer;
+    last_global_log_timer.restart();
+    size_t last_log_size = global_log.size();
 
     // Mouse bug workaround
     ImGuiIO &io = ImGui::GetIO();
@@ -170,21 +175,21 @@ int main() {
         ImGui::Spacing();
         auto bank_nr = ( processor->direct_acc( 0xD0 ) & 0x18 ) >> 3;
         auto *r0_ptr = &processor->iram[8 * bank_nr];
-        ImGui::Text( String( "R0   = " + to_hex_str( *r0_ptr, 16 ) + " (" + to_string( *r0_ptr ) + ")" ).c_str() );
-        ImGui::Text( String( "R1   = " + to_hex_str( *( r0_ptr + 1 ), 16 ) + " (" + to_string( *( r0_ptr + 1 ) ) + ")" )
-                         .c_str() );
-        ImGui::Text( String( "R2   = " + to_hex_str( *( r0_ptr + 2 ), 16 ) + " (" + to_string( *( r0_ptr + 2 ) ) + ")" )
-                         .c_str() );
-        ImGui::Text( String( "R3   = " + to_hex_str( *( r0_ptr + 3 ), 16 ) + " (" + to_string( *( r0_ptr + 3 ) ) + ")" )
-                         .c_str() );
-        ImGui::Text( String( "R4   = " + to_hex_str( *( r0_ptr + 4 ), 16 ) + " (" + to_string( *( r0_ptr + 4 ) ) + ")" )
-                         .c_str() );
-        ImGui::Text( String( "R5   = " + to_hex_str( *( r0_ptr + 5 ), 16 ) + " (" + to_string( *( r0_ptr + 5 ) ) + ")" )
-                         .c_str() );
-        ImGui::Text( String( "R6   = " + to_hex_str( *( r0_ptr + 6 ), 16 ) + " (" + to_string( *( r0_ptr + 6 ) ) + ")" )
-                         .c_str() );
-        ImGui::Text( String( "R7   = " + to_hex_str( *( r0_ptr + 7 ), 16 ) + " (" + to_string( *( r0_ptr + 7 ) ) + ")" )
-                         .c_str() );
+        ImGui::Text( String( "R0   = " + to_hex_str( *r0_ptr ) + " (" + to_string( *r0_ptr ) + ")" ).c_str() );
+        ImGui::Text(
+            String( "R1   = " + to_hex_str( *( r0_ptr + 1 ) ) + " (" + to_string( *( r0_ptr + 1 ) ) + ")" ).c_str() );
+        ImGui::Text(
+            String( "R2   = " + to_hex_str( *( r0_ptr + 2 ) ) + " (" + to_string( *( r0_ptr + 2 ) ) + ")" ).c_str() );
+        ImGui::Text(
+            String( "R3   = " + to_hex_str( *( r0_ptr + 3 ) ) + " (" + to_string( *( r0_ptr + 3 ) ) + ")" ).c_str() );
+        ImGui::Text(
+            String( "R4   = " + to_hex_str( *( r0_ptr + 4 ) ) + " (" + to_string( *( r0_ptr + 4 ) ) + ")" ).c_str() );
+        ImGui::Text(
+            String( "R5   = " + to_hex_str( *( r0_ptr + 5 ) ) + " (" + to_string( *( r0_ptr + 5 ) ) + ")" ).c_str() );
+        ImGui::Text(
+            String( "R6   = " + to_hex_str( *( r0_ptr + 6 ) ) + " (" + to_string( *( r0_ptr + 6 ) ) + ")" ).c_str() );
+        ImGui::Text(
+            String( "R7   = " + to_hex_str( *( r0_ptr + 7 ) ) + " (" + to_string( *( r0_ptr + 7 ) ) + ")" ).c_str() );
         ImGui::End();
 
         ImGui::Begin( "Internal RAM" );
@@ -309,6 +314,40 @@ int main() {
         }
         ImGui::End();
 
+        ImGui::Begin( "Log" );
+        {
+            ImGui::PushStyleVar( ImGuiStyleVar_ItemSpacing, ImVec2( 0, 0 ) );
+            ImGuiListClipper clipper;
+            clipper.Begin( global_log.size() );
+            while ( clipper.Step() ) {
+                for ( size_t i = clipper.DisplayStart; i < clipper.DisplayEnd; i++ ) {
+                    String line =
+                        global_log[i] + ( i == global_log.size() - 1
+                                              ? " (" +
+                                                    to_string( static_cast<size_t>(
+                                                        last_global_log_timer.getElapsedTime().asSeconds() ) ) +
+                                                    "s ago)"
+                                              : "" );
+                    if ( last_global_log_timer.getElapsedTime().asSeconds() < 10.f && i == global_log.size() - 1 ) {
+                        if ( line.find( "success" ) != line.npos ) {
+                            ImGui::TextColored( ImVec4( 0.0f, 1.0f, 0.0f, 1.0f ), line.c_str() );
+                        } else if ( line.find( "failed" ) != line.npos ) {
+                            ImGui::TextColored( ImVec4( 1.0f, 0.0f, 0.0f, 1.0f ), line.c_str() );
+                        } else {
+                            ImGui::Text( line.c_str() );
+                        }
+                    } else {
+                        ImGui::Text( line.c_str() );
+                    }
+                }
+            }
+            ImGui::PopStyleVar();
+            if ( last_log_size != global_log.size() ) {
+                ImGui::SetScrollHereY();
+                last_log_size = global_log.size();
+            }
+        }
+        ImGui::End();
         // ImGui::ShowDemoWindow();
 
         ImGui::EndFrame();
@@ -331,4 +370,6 @@ int main() {
 
 void log( const String &str ) {
     std::cout << str << std::endl;
+    global_log.push_back( str );
+    last_global_log_timer.restart();
 }

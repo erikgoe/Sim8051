@@ -2,9 +2,9 @@
 #include "sim8051/Encoding.hpp"
 
 
-String to_hex_str( u16 val, u8 bytes ) {
+String to_hex_str( u16 val, u8 bit ) {
     std::stringstream stream;
-    stream << std::hex << std::setfill( '0' ) << std::setw( bytes / 4 ) << val;
+    stream << std::hex << std::setfill( '0' ) << std::setw( bit / 4 ) << val;
     return stream.str();
 }
 String to_hex_str_signed( i8 val ) {
@@ -447,8 +447,7 @@ String get_decoded_instruction_string( Processor &processor, u16 code_addr ) {
             ret += " (" + to_hex_str( addr, 16 ) + ")";
             operand_offset++;
         } else if ( operand == "offset" ) {
-            ret += " (" + to_hex_str_signed( *reinterpret_cast<i8 *>( &processor.text[code_addr + operand_offset] ) ) +
-                   ")";
+            ret += " (to " + to_hex_str( ( code_addr + processor.text[code_addr + operand_offset] + size ) ) + ")";
             operand_offset++;
         } else if ( operand == "bit" || operand == "/bit" ) {
             u8 bit_addr = processor.text[code_addr + operand_offset];
@@ -497,13 +496,23 @@ String get_decoded_instruction_string( Processor &processor, u16 code_addr ) {
                                               processor.direct_acc( 0x82 )] ) +
                    ")";
         } else if ( operand == "@A+DPTR" ) {
-            ret += " (" +
-                   to_hex_str( processor.text[( ( static_cast<u16>( processor.direct_acc( 0x83 ) ) << 8 ) |
-                                                processor.direct_acc( 0x82 ) ) +
-                                              processor.direct_acc( 0xE0 )] ) +
-                   ")";
+            if ( code == 0x73 ) {
+                // Show jump target instead of value
+                ret += " (to " +
+                       to_hex_str( ( ( static_cast<u16>( processor.direct_acc( 0x83 ) ) << 8 ) |
+                                     processor.direct_acc( 0x82 ) ) +
+                                   processor.direct_acc( 0xE0 ) ) +
+                       ")";
+            } else {
+                ret += " (" +
+                       to_hex_str( processor.text[( ( static_cast<u16>( processor.direct_acc( 0x83 ) ) << 8 ) |
+                                                    processor.direct_acc( 0x82 ) ) +
+                                                  processor.direct_acc( 0xE0 )] ) +
+                       ")";
+            }
         } else if ( operand == "@A+PC" ) {
-            ret += " (" + to_hex_str( processor.text[processor.pc + processor.direct_acc( 0xE0 )] ) + ")";
+            // "+1" because the pc is incremented before the query (and only OP 0x83 uses this operand).
+            ret += " (" + to_hex_str( processor.text[code_addr + processor.direct_acc( 0xE0 ) + 1] ) + ")";
         } else if ( operand == "B" ) {
             ret += " (" + to_hex_str( processor.direct_acc( 0xF0 ) ) + ")";
         }
@@ -615,6 +624,7 @@ void compile_assembly( const String &code, std::ostream &output ) {
     // thus need indirection.
     //
 
+    bool successful = true;
 
     // Prepare maps
     std::map<String, u8> rev_op_codes;
@@ -694,12 +704,16 @@ void compile_assembly( const String &code, std::ostream &output ) {
         if ( line.find( ":" ) != line.npos ) {
             // Label
 
-            if ( line.find( ":" ) != line.size() - 1 )
+            if ( line.find( ":" ) != line.size() - 1 ) {
                 log( "Invalid label syntax." );
+                successful = false;
+            }
             line.pop_back();
 
-            if ( label_targets.find( line ) != label_targets.end() )
+            if ( label_targets.find( line ) != label_targets.end() ) {
                 log( "Found label '" + line + "' multiple times (line " + to_string( line_no ) + ")" );
+                successful = false;
+            }
             label_targets[line] = hex.size();
         } else {
             // Normal command
@@ -725,6 +739,7 @@ void compile_assembly( const String &code, std::ostream &output ) {
                         substitute_command( line, arg1_idx, arg2_idx, rev_sfr_names );
                         if ( rev_op_codes.find( line ) == rev_op_codes.end() ) {
                             log( "Unknown command/syntax at line " + to_string( line_no ) + "." );
+                            successful = false;
                         }
                     }
                 }
@@ -787,6 +802,9 @@ void compile_assembly( const String &code, std::ostream &output ) {
                                 } else {
                                     // Only one byte
                                     val = static_cast<i8>( stoi( arg, 0, 16 ) );
+                                    if ( arg != to_hex_str( val, arg.size() * 4 ) &&
+                                         arg != to_hex_str( static_cast<u8>( val ), arg.size() * 4 ) )
+                                        log( "Warning: possible misinterpretation at line " + to_string( line_no ) );
                                 }
                             }
                             if ( opcode != 0x90 ) // Already inserted (see above).
@@ -795,6 +813,9 @@ void compile_assembly( const String &code, std::ostream &output ) {
                             if ( arg.find_first_not_of( "0123456789abcdef" ) == arg.npos ) {
                                 // Is direct value
                                 auto tmp = static_cast<i8>( stoi( arg, 0, 16 ) );
+                                if ( arg != to_hex_str( tmp, arg.size() * 4 ) &&
+                                     arg != to_hex_str( static_cast<u8>( tmp ), arg.size() * 4 ) )
+                                    log( "Warning: possible misinterpretation at line " + to_string( line_no ) );
                                 hex.push_back( *reinterpret_cast<u8 *>( &tmp ) );
                             } else {
                                 // Is label
@@ -819,8 +840,10 @@ void compile_assembly( const String &code, std::ostream &output ) {
         for ( auto &pos : pair.second ) {
             // Relative offset
             i16 rel_target = target - pos - hex[pos];
-            if ( rel_target > 127 || rel_target < -128 )
+            if ( rel_target > 127 || rel_target < -128 ) {
                 log( "Relative jump offset is too far." );
+                successful = false;
+            }
             auto tmp = static_cast<i8>( rel_target );
             hex[pos] = *reinterpret_cast<u8 *>( &tmp );
         }
@@ -829,8 +852,10 @@ void compile_assembly( const String &code, std::ostream &output ) {
         auto target = label_targets[pair.first];
         for ( auto &pos : pair.second ) {
             // Relative jump
-            if ( ( target & 0xF800 ) != ( ( pos + 2 ) & 0xF800 ) )
+            if ( ( target & 0xF800 ) != ( ( pos + 2 ) & 0xF800 ) ) {
                 log( "Relative jump is too far (not the same 2Ki-block)." );
+                successful = false;
+            }
             hex[pos] = ( hex[pos] & 0x1F ) | ( ( ( target >> 8 ) & 0x07 ) << 5 );
             hex[pos + 1] = target & 0xFF;
         }
@@ -844,5 +869,8 @@ void compile_assembly( const String &code, std::ostream &output ) {
         }
     }
 
-    encode_hex_file( hex, output );
+    if ( successful ) {
+        encode_hex_file( hex, output );
+        log( "Compilation successful." );
+    }
 }
