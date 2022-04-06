@@ -33,10 +33,9 @@ int main() {
     bool should_compile = false;
     bool should_load = true;
 
-    // Mouse bug workaround
+    // ImGui configuration
     ImGuiIO &io = ImGui::GetIO();
-    io.ConfigFlags |= ImGuiConfigFlags_NoMouseCursorChange;
-    io.ConfigFlags |= ImGuiConfigFlags_DockingEnable; // Enable docking
+    io.ConfigFlags |= ImGuiConfigFlags_DockingEnable;
 
     bool running = true;
     sf::Event evt;
@@ -46,6 +45,8 @@ int main() {
     size_t steps_per_frame = 0;
     bool pause_next_frame = false;
     bool max_speed = false;
+    u32 fix_target_frequency = 12000;
+    bool use_fix_target_frequency = false;
     std::vector<u16> op_code_indices; // Pointers to the op codes.
     auto processor = std::make_shared<Processor>();
     String hex_filename = "tests/simple.hex";
@@ -80,11 +81,13 @@ int main() {
                         steps_per_frame = 1;
                         pause_next_frame = true;
                         max_speed = false;
+                        use_fix_target_frequency = false;
                     } else if ( evt.key.code == sf::Keyboard::R ) {
                         processor->reset();
                     } else if ( evt.key.code == sf::Keyboard::P ) {
                         steps_per_frame = steps_per_frame == 0 ? 1 : 0;
                         max_speed = false;
+                        use_fix_target_frequency = false;
                     } else if ( evt.key.code == sf::Keyboard::L ) {
                         should_compile = true;
                         should_load = true;
@@ -128,6 +131,8 @@ int main() {
             } else {
                 steps_per_frame = std::max<u32>( 1, steps_per_frame / 1.2 );
             }
+        } else if ( use_fix_target_frequency ) {
+            steps_per_frame = delta_time.asSeconds() * fix_target_frequency;
         }
 
         // Gui
@@ -142,14 +147,21 @@ int main() {
         if ( ImGui::Button( steps_per_frame != 0 ? "Pause" : "Run" ) ) {
             steps_per_frame = steps_per_frame == 0 ? 1 : 0;
             max_speed = false;
+            use_fix_target_frequency = false;
         }
         if ( ImGui::Button( "Single step" ) ) {
             steps_per_frame = 1;
             pause_next_frame = true;
             max_speed = false;
+            use_fix_target_frequency = false;
         }
         if ( ImGui::Button( "Max speed" ) ) {
             max_speed = true;
+            use_fix_target_frequency = false;
+        }
+        if ( ImGui::Button( "Run (12 MHz)" ) ) {
+            max_speed = false;
+            use_fix_target_frequency = true;
         }
         if ( ImGui::Button( "Reset MCU" ) ) {
             processor->reset();
@@ -159,6 +171,7 @@ int main() {
              ImGui::Button( "Load" ) ) {
             steps_per_frame = 0;
             max_speed = false;
+            use_fix_target_frequency = false;
             if ( processor->load_hex_code( hex_filename ) )
                 decode_instructions( *processor, op_code_indices );
         }
@@ -327,6 +340,7 @@ int main() {
                 if ( hex_filename == filename ) {
                     steps_per_frame = 0;
                     max_speed = false;
+                    use_fix_target_frequency = false;
                     if ( processor->load_hex_code( hex_filename ) )
                         decode_instructions( *processor, op_code_indices );
                 }
