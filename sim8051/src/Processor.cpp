@@ -101,6 +101,7 @@ void Processor::reset() {
     xram.fill( 0 );
     pc = 0;
     cycle_count = 0;
+    direct_acc( 0x81 ) = 0x07;
 }
 
 bool parity_of_byte( u8 byte ) {
