@@ -166,6 +166,7 @@ void Processor::do_cycle() {
     bool bit = false;
     i16 result;
     u16 inc_pc = 1;
+    u8 inc_cycle = 2;
 
     // Execute the instruction.
     u8 ls_nibble = instr & 0xf;
@@ -208,6 +209,7 @@ void Processor::do_cycle() {
             } else {
                 ( *value )++;
             }
+            inc_cycle = 1;
             break;
         case 0x1: // DEC operand
             if ( ls_nibble == 4 ) {
@@ -217,6 +219,7 @@ void Processor::do_cycle() {
             } else {
                 ( *value )--;
             }
+            inc_cycle = 1;
             break;
         case 0x2: // ADD A,operand
             result = static_cast<i16>( a ) + static_cast<i16>( *value );
@@ -225,6 +228,7 @@ void Processor::do_cycle() {
             set_bit_to( auxilary_addr, ( a & 0b1000 ) == 1 && ( static_cast<u8>( result ) & 0b1000 ) == 0 );
             a = result;
             set_bit_to( parity_addr, parity_of_byte( a ) );
+            inc_cycle = 1;
             break;
         case 0x3: // ADDC A,operand
             result = static_cast<i16>( a ) + static_cast<i16>( *value ) + ( is_bit_set( carry_addr ) ? 1 : 0 );
@@ -233,18 +237,22 @@ void Processor::do_cycle() {
             set_bit_to( auxilary_addr, ( a & 0b1000 ) == 1 && ( static_cast<u8>( result ) & 0b1000 ) == 0 );
             a = result;
             set_bit_to( parity_addr, parity_of_byte( a ) );
+            inc_cycle = 1;
             break;
         case 0x4: // ORL A,operand
             a |= *value;
             set_bit_to( parity_addr, parity_of_byte( a ) );
+            inc_cycle = 1;
             break;
         case 0x5: // ANL A,operand
             a &= *value;
             set_bit_to( parity_addr, parity_of_byte( a ) );
+            inc_cycle = 1;
             break;
         case 0x6: // XRL A,operand
             a ^= *value;
             set_bit_to( parity_addr, parity_of_byte( a ) );
+            inc_cycle = 1;
             break;
         case 0x7: // MOV operand,#data
             if ( ls_nibble == 4 ) {
@@ -254,6 +262,8 @@ void Processor::do_cycle() {
                 *value = *second_operand;
                 inc_pc++;
             }
+            if ( ls_nibble != 5 )
+                inc_cycle = 1;
             break;
         case 0x8: // MOV address,operand
             if ( ls_nibble == 4 ) {
@@ -270,6 +280,7 @@ void Processor::do_cycle() {
                     set_bit_to( parity_addr, parity_of_byte( a ) );
                 }
                 inc_pc = 1;
+                inc_cycle = 4;
             } else if ( ls_nibble == 5 ) {
                 direct_acc( arg2 ) = *value; // Swapped parameters!
                 inc_pc = 3;
@@ -285,6 +296,7 @@ void Processor::do_cycle() {
             set_bit_to( auxilary_addr, ( a & 0b1000 ) == 1 && ( static_cast<u8>( result ) & 0b1000 ) == 0 );
             a = result;
             set_bit_to( parity_addr, parity_of_byte( a ) );
+            inc_cycle = 1;
             break;
         case 0xA: // MOV operand,address
             if ( ls_nibble == 4 ) {
@@ -296,10 +308,12 @@ void Processor::do_cycle() {
                 set_bit_to( overflow_addr, prod > 0xff );
                 set_bit_to( parity_addr, parity_of_byte( a ) );
                 inc_pc = 1;
+                inc_cycle = 4;
             } else if ( ls_nibble == 5 ) {
                 // Reserved instruction
                 log( "Executed reserved instruction A5!" );
                 inc_pc = 1;
+                inc_cycle = 1;
             } else {
                 *value = direct_acc( arg1 );
                 inc_pc = 2;
@@ -336,6 +350,7 @@ void Processor::do_cycle() {
                 set_bit_to( parity_addr, parity_of_byte( a ) );
                 inc_pc = ls_nibble == 5 ? 2 : 1;
             }
+            inc_cycle = 1;
             break;
         case 0xD: // DJNZ operand,offset
             if ( ls_nibble == 4 ) {
@@ -352,12 +367,14 @@ void Processor::do_cycle() {
                 }
                 set_bit_to( parity_addr, parity_of_byte( a ) );
                 inc_pc = 1;
+                inc_cycle = 1;
             } else if ( ls_nibble == 6 || ls_nibble == 7 ) {
                 // Actually encodes XCHD
                 u8 tmp = *value & 0xf;
                 *value = ( *value & 0xf0 ) | ( a & 0xf );
                 a = ( a & 0xf0 ) | tmp;
                 inc_pc = 1;
+                inc_cycle = 1;
             } else if ( ls_nibble == 5 ) {
                 pc += 3; // Documentation specifies 2, but 3 makes more sense.
                 ( *value )--;
@@ -381,6 +398,7 @@ void Processor::do_cycle() {
                 a = *value;
                 set_bit_to( parity_addr, parity_of_byte( a ) );
             }
+            inc_cycle = 1;
             break;
         case 0xF: // MOV operand,A
             if ( ls_nibble == 4 ) {
@@ -391,6 +409,7 @@ void Processor::do_cycle() {
                 *value = a;
                 set_bit_to( parity_addr, parity_of_byte( a ) );
             }
+            inc_cycle = 1;
             break;
 
         default:
@@ -416,6 +435,7 @@ void Processor::do_cycle() {
             if ( ls_nibble == 0 ) {
                 switch ( ms_nibble ) {
                 case 0x0: // NOP
+                    inc_cycle = 1;
                     break;
                 case 0x1: // JBC bit,offset
                     pc += 3;
@@ -534,14 +554,17 @@ void Processor::do_cycle() {
                 case 0x4: // ORL address,A
                     direct_acc( arg1 ) |= a;
                     inc_pc = 2;
+                    inc_cycle = 1;
                     break;
                 case 0x5: // ANL address,A
                     direct_acc( arg1 ) &= a;
                     inc_pc = 2;
+                    inc_cycle = 1;
                     break;
                 case 0x6: // XRL address,A
                     direct_acc( arg1 ) ^= a;
                     inc_pc = 2;
+                    inc_cycle = 1;
                     break;
                 case 0x7: // ORL C,bit
                     set_bit_to( carry_addr, is_bit_set( carry_addr ) | is_bit_set( arg1 ) );
@@ -558,18 +581,22 @@ void Processor::do_cycle() {
                 case 0xA: // MOV C,bit
                     set_bit_to( carry_addr, is_bit_set( arg1 ) );
                     inc_pc = 2;
+                    inc_cycle = 1;
                     break;
                 case 0xB: // CPL bit
                     set_bit_to( arg1, !is_bit_set( arg1 ) );
                     inc_pc = 2;
+                    inc_cycle = 1;
                     break;
                 case 0xC: // CLR bit
                     set_bit_to( arg1, false );
                     inc_pc = 2;
+                    inc_cycle = 1;
                     break;
                 case 0xD: // SETB bit
                     set_bit_to( arg1, true );
                     inc_pc = 2;
+                    inc_cycle = 1;
                     break;
                 case 0xE: // MOVX A,@R0
                     a = xram[( static_cast<u16>( p2 ) << 8 ) + r0];
@@ -584,11 +611,12 @@ void Processor::do_cycle() {
                 }
             } else if ( ls_nibble == 3 ) {
                 switch ( ms_nibble ) {
-                case 0x00: // RR A
+                case 0x0: // RR A
                     bit = is_bit_set( acc_0_addr );
                     a >>= 1;
                     if ( bit )
                         a |= 0b10000000;
+                    inc_cycle = 1;
                     break;
                 case 0x1: // RRC A
                     bit = is_bit_set( acc_0_addr );
@@ -596,11 +624,13 @@ void Processor::do_cycle() {
                     set_bit_to( acc_7_addr, carry_addr );
                     set_bit_to( carry_addr, bit );
                     set_bit_to( parity_addr, parity_of_byte( a ) );
+                    inc_cycle = 1;
                     break;
                 case 0x2: // RL A
                     bit = is_bit_set( acc_7_addr );
                     a <<= 1;
                     set_bit_to( acc_0_addr, bit );
+                    inc_cycle = 1;
                     break;
                 case 0x3: // RLC A
                     bit = is_bit_set( acc_7_addr );
@@ -608,6 +638,7 @@ void Processor::do_cycle() {
                     set_bit_to( acc_0_addr, carry_addr );
                     set_bit_to( carry_addr, bit );
                     set_bit_to( parity_addr, parity_of_byte( a ) );
+                    inc_cycle = 1;
                     break;
                 case 0x4: // ORL address,#data
                     direct_acc( arg1 ) |= arg2;
@@ -642,12 +673,15 @@ void Processor::do_cycle() {
                     break;
                 case 0xB: // CPL C
                     set_bit_to( carry_addr, !is_bit_set( carry_addr ) );
+                    inc_cycle = 1;
                     break;
                 case 0xC: // CLR C
                     set_bit_to( carry_addr, false );
+                    inc_cycle = 1;
                     break;
                 case 0xD: // SETB C
                     set_bit_to( carry_addr, true );
+                    inc_cycle = 1;
                     break;
                 case 0xE: // MOVX A,@R1
                     a = xram[( static_cast<u16>( p2 ) << 8 ) + r1];
@@ -665,6 +699,5 @@ void Processor::do_cycle() {
     }
 
     pc += inc_pc;
-
-    cycle_count++;
+    cycle_count += inc_cycle;
 }
