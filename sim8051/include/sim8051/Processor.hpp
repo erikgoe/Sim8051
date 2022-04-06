@@ -6,7 +6,6 @@
 class Processor {
     u8 invalid_byte; // Used for invalid access (like accessing invalid direct addresses)
 public:
-
     /// Returns the value at a direct address.
     u8 &direct_acc( u8 addr );
     /// Returns whether bit is set.
@@ -22,6 +21,11 @@ public:
 
     /// Metadata
     size_t cycle_count = 0;
+
+    // Breakpoint functionality
+    u8 break_instruction = 0; // Always break on this instruction (could be set to 0xA5 to "disable").
+    std::vector<u16> break_addresses; // Break always on these addresses.
+    std::function<void( Processor & )> break_callback = []( auto && ) {}; // Called on a breakpoint.
 
     /// Load source code from a HEX-file. Returns true on success.
     bool load_hex_code( const String &file );

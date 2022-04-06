@@ -12,6 +12,9 @@ void decode_instructions( const Processor &processor, std::vector<u16> &op_code_
 /// Decodes instructions and translates them into a humand-readable string with live data from the processor.
 String get_decoded_instruction_string( Processor &processor, u16 code_addr );
 
+/// Transfers all characters of an ASCII-String to lower case.
+String to_lower( const String &str );
+
 /// Compiles assembly code into machine code and writes it in hex-format to a file.
 /// Accepted instruction syntax:
 /// Commas between parameters are optional.

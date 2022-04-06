@@ -600,7 +600,6 @@ void encode_hex_file( const std::vector<u8> &code, std::ostream &output ) {
     output << ":00000001ff\n";
 }
 
-/// Transfers all characters of an ASCII-String to lower case.
 String to_lower( const String &str ) {
     String tmp;
     tmp.reserve( str.size() );

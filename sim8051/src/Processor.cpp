@@ -701,4 +701,11 @@ void Processor::do_cycle() {
 
     pc += inc_pc;
     cycle_count += inc_cycle;
+
+    // Check breakpoints
+    if ( text[pc] == break_instruction ||
+         std::find( break_addresses.begin(), break_addresses.end(), pc ) != break_addresses.end() ) {
+        // Hit breakpoint
+        break_callback( *this );
+    }
 }

@@ -58,6 +58,14 @@ int main() {
     if ( processor->load_hex_code( hex_filename ) )
         decode_instructions( *processor, op_code_indices );
 
+    // Breakpoint callback
+    processor->break_callback = [&]( auto &&processor ) {
+        steps_per_frame = steps_per_frame == 0;
+        max_speed = false;
+        use_fix_target_frequency = false;
+        log( "Hit breakpoint at instruction '" + to_hex_str( processor.pc ) + "'" );
+    };
+
     // Main loop
     while ( running ) {
         // Calculate delta time
@@ -85,9 +93,9 @@ int main() {
                     } else if ( evt.key.code == sf::Keyboard::R ) {
                         processor->reset();
                     } else if ( evt.key.code == sf::Keyboard::P ) {
-                        steps_per_frame = steps_per_frame == 0 ? 1 : 0;
                         max_speed = false;
-                        use_fix_target_frequency = false;
+                        steps_per_frame = steps_per_frame == 0 ? 1 : 0;
+                        use_fix_target_frequency = evt.key.shift;
                     } else if ( evt.key.code == sf::Keyboard::L ) {
                         should_compile = true;
                         should_load = true;
@@ -172,8 +180,16 @@ int main() {
             steps_per_frame = 0;
             max_speed = false;
             use_fix_target_frequency = false;
-            if ( processor->load_hex_code( hex_filename ) )
+            if ( processor->load_hex_code( hex_filename ) ) {
                 decode_instructions( *processor, op_code_indices );
+                log( "Loaded hex file" );
+            }
+        }
+
+        ImGui::Spacing();
+        String break_instr_str = to_hex_str( processor->break_instruction );
+        if ( ImGui::InputText( "Break instruction", &break_instr_str, ImGuiInputTextFlags_EnterReturnsTrue ) ) {
+            processor->break_instruction = stoi( break_instr_str, 0, 16 );
         }
 
         ImGui::End();
@@ -217,23 +233,6 @@ int main() {
             String( "R7   = " + to_hex_str( *( r0_ptr + 7 ) ) + " (" + to_string( *( r0_ptr + 7 ) ) + ")" ).c_str() );
         ImGui::End();
 
-        ImGui::Begin( "Internal RAM" );
-        {
-            ImGui::PushStyleVar( ImGuiStyleVar_ItemSpacing, ImVec2( 0, 0 ) );
-            ImGuiListClipper clipper;
-            clipper.Begin( processor->iram.size() / 8 );
-            while ( clipper.Step() ) {
-                for ( size_t i = clipper.DisplayStart; i < clipper.DisplayEnd; i++ ) {
-                    String line = "Addr " + to_hex_str( i * 8 ) + ": ";
-                    for ( size_t j = 0; j < 8; j++ )
-                        line += " " + to_hex_str( processor->iram[i * 8 + j] );
-                    ImGui::Text( line.c_str() );
-                }
-            }
-            ImGui::PopStyleVar();
-        }
-        ImGui::End();
-
         ImGui::Begin( "Text (ROM)" );
         {
             ImGui::PushStyleVar( ImGuiStyleVar_ItemSpacing, ImVec2( 0, 0 ) );
@@ -268,6 +267,23 @@ int main() {
         }
         ImGui::End();
 
+        ImGui::Begin( "Internal RAM" );
+        {
+            ImGui::PushStyleVar( ImGuiStyleVar_ItemSpacing, ImVec2( 0, 0 ) );
+            ImGuiListClipper clipper;
+            clipper.Begin( processor->iram.size() / 8 );
+            while ( clipper.Step() ) {
+                for ( size_t i = clipper.DisplayStart; i < clipper.DisplayEnd; i++ ) {
+                    String line = "Addr " + to_hex_str( i * 8 ) + ": ";
+                    for ( size_t j = 0; j < 8; j++ )
+                        line += " " + to_hex_str( processor->iram[i * 8 + j] );
+                    ImGui::Text( line.c_str() );
+                }
+            }
+            ImGui::PopStyleVar();
+        }
+        ImGui::End();
+
         ImGui::Begin( "Assembly" );
         {
             ImGui::PushStyleVar( ImGuiStyleVar_ItemSpacing, ImVec2( 0, 0 ) );
@@ -275,9 +291,24 @@ int main() {
             clipper.Begin( op_code_indices.size() );
             while ( clipper.Step() ) {
                 for ( size_t i = clipper.DisplayStart; i < clipper.DisplayEnd; i++ ) {
-                    String line = to_hex_str( op_code_indices[i] ) + ": " +
-                                  get_decoded_instruction_string( *processor, op_code_indices[i] );
-                    if ( op_code_indices[i] == processor->pc ) {
+                    u16 code_index = op_code_indices[i];
+                    String line = " " + to_hex_str( code_index ) + ": " +
+                                  get_decoded_instruction_string( *processor, code_index );
+                    auto bp_itr =
+                        std::find( processor->break_addresses.begin(), processor->break_addresses.end(), code_index );
+                    ImGui::PushID( i );
+                    if ( bp_itr != processor->break_addresses.end() ) {
+                        if ( ImGui::Button( "O" ) ) {
+                            processor->break_addresses.erase( bp_itr );
+                        }
+                    } else {
+                        if ( ImGui::Button( " " ) ) {
+                            processor->break_addresses.push_back( code_index );
+                        }
+                    }
+                    ImGui::PopID();
+                    ImGui::SameLine();
+                    if ( code_index == processor->pc ) {
                         ImGui::TextColored( ImVec4( 1.0f, 1.0f, 0.0f, 1.0f ), line.c_str() );
                         if ( last_pc != processor->pc ) {
                             ImGui::SetScrollHereY();
@@ -295,7 +326,7 @@ int main() {
         ImGui::Begin( "Editor" );
         {
             should_load |= ImGui::InputText( "In file", &editor_asm_filename );
-            ImGui::InputText( "Out dir", &editor_hex_file_dir );
+            ImGui::InputText( "Out directory", &editor_hex_file_dir );
 
             should_load |= ImGui::Button( "Load" );
             ImGui::SameLine();
@@ -314,6 +345,7 @@ int main() {
                     editor_content.clear();
                     while ( std::getline( file, tmp ) )
                         editor_content += tmp + '\n';
+                    log( "Loaded assembler file" );
                 }
                 should_load = false;
             }
@@ -364,9 +396,9 @@ int main() {
                                                     "s ago)"
                                               : "" );
                     if ( last_global_log_timer.getElapsedTime().asSeconds() < 10.f && i == global_log.size() - 1 ) {
-                        if ( line.find( "success" ) != line.npos ) {
+                        if ( to_lower( line ).find( "success" ) != line.npos ) {
                             ImGui::TextColored( ImVec4( 0.0f, 1.0f, 0.0f, 1.0f ), line.c_str() );
-                        } else if ( line.find( "failed" ) != line.npos ) {
+                        } else if ( to_lower( line ).find( "fail" ) != line.npos ) {
                             ImGui::TextColored( ImVec4( 1.0f, 0.0f, 0.0f, 1.0f ), line.c_str() );
                         } else {
                             ImGui::Text( line.c_str() );
