@@ -1,8 +1,13 @@
 # Sim8051
-Simulator for the 8051 architecture.
+A simple simulator for the 8051 architecture. Includes a disassembler and a simple assembly editor (+assembler) for a more streamlined workflow.
 
 ## Why?
-I need a simulator for my little compiler project and didn't find a simple one that compiles on linux, so I thought it would make sense to quickly write my own.
+I need a simulator for my little compiler project and didn't find a simple one that compiles on linux, so I thought it would make sense to "quickly" write my own.
+
+## Usage notes
+* GUI docking: I recommend to create a proper layout by moving the sub-windows to the window edges.
+* The simulator is designed following the documentation in the "sources" section below.
+* Vague syntax specification for the integrated assembler can be found in Encoding.hpp. Available mnemonics can be found in keil's documentation (see sources section).
 
 ## Dependencies
 Install them with a package manager like "pacman" or follow the instructions on their website.

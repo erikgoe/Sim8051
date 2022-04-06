@@ -610,20 +610,6 @@ String to_lower( const String &str ) {
 }
 
 void compile_assembly( const String &code, std::ostream &output ) {
-    // Accepted signature:
-    // Commas between parameters are optional.
-    // All numbers are interpreted in base 16.
-    // Addresses are written in parenthesis or as SFRs.
-    // The first parameter is always an address.
-    // Some registers are used as indirection address when written in parenthesis.
-    // Keep in mind that assembler and disassembler are distinct systems, i. e. the syntax and registers of one don't
-    // always apply to the other.
-    // Bits can't be accessed with syntax "A.1". But some common bits (like C) can be used (see table rev_sfr_map
-    // below) directly.
-    // You will most likely need to wrap bit addresses in parenthesis, as they are treated like normal addresses and
-    // thus need indirection.
-    //
-
     bool successful = true;
 
     // Prepare maps
