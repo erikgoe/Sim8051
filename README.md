@@ -32,6 +32,9 @@ SFML ist the only dependency which must be installed manually, the rest is inclu
     cmake ..
     make
 
+### Other notes
+In theory you can use this code in your own project by just including Processor.hpp/.cpp (+stdafx.hpp) and you'll have a full simulator at your service.
+The "Processor" and "Encoding+Processor" modules are designed to be independent of "main", which mostly implements gui stuff. The only thing that needs to be provided is a generic "void log( const std::string & )" function for logging (see stdafx.hpp).
 
 ### Sources
 * https://en.wikipedia.org/wiki/Intel_8051

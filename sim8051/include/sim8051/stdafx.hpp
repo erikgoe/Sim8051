@@ -1,27 +1,13 @@
 #pragma once
 
-#include <cmath>
 #include <iostream>
 #include <string>
 #include <vector>
 #include <deque>
 #include <map>
 #include <functional>
-#include <atomic>
-#include <future>
-#include <mutex>
-#include <thread>
-#include <condition_variable>
 #include <fstream>
 #include <filesystem>
-#include <random>
-
-#include "SFML/System.hpp"
-#include "SFML/Window.hpp"
-#include "SFML/Graphics.hpp"
-#include "imgui-SFML.h"
-#include "imgui.h"
-#include "misc/cpp/imgui_stdlib.h"
 
 using u8 = unsigned char;
 using u16 = unsigned short;

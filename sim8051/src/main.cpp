@@ -2,6 +2,13 @@
 #include "sim8051/Processor.hpp"
 #include "sim8051/Encoding.hpp"
 
+#include "SFML/System.hpp"
+#include "SFML/Window.hpp"
+#include "SFML/Graphics.hpp"
+#include "imgui-SFML.h"
+#include "imgui.h"
+#include "misc/cpp/imgui_stdlib.h"
+
 std::deque<String> global_log;
 sf::Clock last_global_log_timer;
 
