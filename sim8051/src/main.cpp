@@ -25,6 +25,7 @@ int main() {
     // Mouse bug workaround
     ImGuiIO &io = ImGui::GetIO();
     io.ConfigFlags |= ImGuiConfigFlags_NoMouseCursorChange;
+    io.ConfigFlags |= ImGuiConfigFlags_DockingEnable; // Enable docking
 
     bool running = true;
     sf::Event evt;
@@ -121,6 +122,8 @@ int main() {
         }
 
         // Gui
+        ImGui::DockSpaceOverViewport();
+
         ImGui::Begin( "Control" );
         ImGui::Text( String( "Cycle count: " + to_string( processor->cycle_count ) +
                              ( steps_per_frame == 0 ? " (Paused)" : "" ) )

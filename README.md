@@ -19,6 +19,7 @@ SFML ist the only dependency which must be installed manually, the rest is inclu
     mkdir deps && cd deps
     git clone https://github.com/ocornut/imgui
     git clone https://github.com/eliasdaler/imgui-sfml
+    git -C imgui checkout docking # only necessary until docking branch is merged
     cat imgui-sfml/imconfig-SFML.h >> imgui/imconfig.h
     cd ..
     
