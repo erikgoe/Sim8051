@@ -8,6 +8,7 @@ I need a simulator for my little compiler project and didn't find a simple one t
 * GUI docking: I recommend to create a proper layout by moving the sub-windows to the window edges.
 * The simulator is designed following the documentation in the "sources" section below.
 * Vague syntax specification for the integrated assembler can be found in Encoding.hpp. Available mnemonics can be found in keil's documentation (see sources section).
+* Some keyboard shortcuts are supported: Space (single step), R (reset MCU), CTRL+Enter while editing (save & compile), P (run/pause), L (reload all files and compile).
 
 ## Dependencies
 Install them with a package manager like "pacman" or follow the instructions on their website.

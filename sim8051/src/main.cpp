@@ -28,6 +28,10 @@ int main() {
     sf::Clock timer;
     last_global_log_timer.restart();
     size_t last_log_size = global_log.size();
+    size_t last_pc = 0;
+    bool should_save = false;
+    bool should_compile = false;
+    bool should_load = true;
 
     // Mouse bug workaround
     ImGuiIO &io = ImGui::GetIO();
@@ -53,16 +57,6 @@ int main() {
     if ( processor->load_hex_code( hex_filename ) )
         decode_instructions( *processor, op_code_indices );
 
-    // Try to read editor file.
-    {
-        std::ifstream file( editor_asm_filename );
-        if ( file.good() ) {
-            String tmp;
-            while ( std::getline( file, tmp ) )
-                editor_content += tmp + '\n';
-        }
-    }
-
     // Main loop
     while ( running ) {
         // Calculate delta time
@@ -86,6 +80,14 @@ int main() {
                         steps_per_frame = 1;
                         pause_next_frame = true;
                         max_speed = false;
+                    } else if ( evt.key.code == sf::Keyboard::R ) {
+                        processor->reset();
+                    } else if ( evt.key.code == sf::Keyboard::P ) {
+                        steps_per_frame = steps_per_frame == 0 ? 1 : 0;
+                        max_speed = false;
+                    } else if ( evt.key.code == sf::Keyboard::L ) {
+                        should_compile = true;
+                        should_load = true;
                     }
                 }
                 break;
@@ -264,6 +266,10 @@ int main() {
                                   get_decoded_instruction_string( *processor, op_code_indices[i] );
                     if ( op_code_indices[i] == processor->pc ) {
                         ImGui::TextColored( ImVec4( 1.0f, 1.0f, 0.0f, 1.0f ), line.c_str() );
+                        if ( last_pc != processor->pc ) {
+                            ImGui::SetScrollHereY();
+                            last_pc = processor->pc;
+                        }
                     } else {
                         ImGui::Text( line.c_str() );
                     }
@@ -275,14 +281,14 @@ int main() {
 
         ImGui::Begin( "Editor" );
         {
-            bool should_load = ImGui::InputText( "In file", &editor_asm_filename );
+            should_load |= ImGui::InputText( "In file", &editor_asm_filename );
             ImGui::InputText( "Out dir", &editor_hex_file_dir );
 
             should_load |= ImGui::Button( "Load" );
             ImGui::SameLine();
-            bool should_save = ImGui::Button( "Save" );
+            should_save |= ImGui::Button( "Save" );
             ImGui::SameLine();
-            bool should_compile = ImGui::Button( "Compile" );
+            should_compile |= ImGui::Button( "Compile" );
 
             should_compile |= ImGui::InputTextMultiline( "##content", &editor_content, ImVec2( -FLT_MIN, -FLT_MIN ),
                                                          ImGuiInputTextFlags_EnterReturnsTrue );
@@ -290,16 +296,20 @@ int main() {
 
             if ( should_load ) {
                 std::ifstream file( editor_asm_filename );
-                String tmp;
-                editor_content.clear();
-                while ( std::getline( file, tmp ) )
-                    editor_content += tmp + '\n';
+                if ( file.good() ) {
+                    String tmp;
+                    editor_content.clear();
+                    while ( std::getline( file, tmp ) )
+                        editor_content += tmp + '\n';
+                }
+                should_load = false;
             }
 
             if ( should_save ) {
                 std::ofstream file( editor_asm_filename );
                 file << editor_content;
                 file.close();
+                should_save = false;
             }
 
             if ( should_compile ) {
@@ -320,6 +330,7 @@ int main() {
                     if ( processor->load_hex_code( hex_filename ) )
                         decode_instructions( *processor, op_code_indices );
                 }
+                should_compile = false;
             }
         }
         ImGui::End();
