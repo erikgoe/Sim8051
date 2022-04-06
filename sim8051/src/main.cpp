@@ -430,6 +430,7 @@ int main() {
     }
 
     // Cleanup
+    window.close();
     ImGui::SFML::Shutdown();
 
     return 0;
