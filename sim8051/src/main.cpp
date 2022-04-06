@@ -198,6 +198,15 @@ int main() {
         ImGui::Text( String( "PSW  = " + to_hex_str( processor->direct_acc( 0xD0 ) ) + " (" +
                              to_string( processor->direct_acc( 0xD0 ) ) + ")" )
                          .c_str() );
+        ImGui::Text( String( "  C=" + String( processor->is_bit_set( 0xD7 ) ? "1" : "0" ) +
+                             ", AC=" + ( processor->is_bit_set( 0xD6 ) ? "1" : "0" ) +
+                             ", F0=" + ( processor->is_bit_set( 0xD5 ) ? "1" : "0" ) +
+                             ", RS1=" + ( processor->is_bit_set( 0xD4 ) ? "1" : "0" ) +
+                             ", RS0=" + ( processor->is_bit_set( 0xD3 ) ? "1" : "0" ) +
+                             ", OV=" + ( processor->is_bit_set( 0xD2 ) ? "1" : "0" ) +
+                             ", UD=" + ( processor->is_bit_set( 0xD1 ) ? "1" : "0" ) +
+                             ", P=" + ( processor->is_bit_set( 0xD0 ) ? "1" : "0" ) )
+                         .c_str() );
         ImGui::Text( String( "A    = " + to_hex_str( processor->direct_acc( 0xE0 ) ) + " (" +
                              to_string( processor->direct_acc( 0xE0 ) ) + ")" )
                          .c_str() );
