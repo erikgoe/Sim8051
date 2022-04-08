@@ -810,7 +810,7 @@ void Processor::do_cycle() {
     // Timer 0 handling
     u8 tmod_val = tmod;
     u8 mode0 = tmod_val & 0b11;
-    u8 mode1 = tmod_val & 0b110000;
+    u8 mode1 = ( tmod_val & 0b110000 ) >> 4;
     bool run0 = is_bit_set( tcon_tr0 ) && ( !( tmod & 0b1000 ) || !is_bit_set( p3_int0 ) );
     bool run1 = is_bit_set( tcon_tr1 ) && ( !( tmod & 0b10000000 ) || !is_bit_set( p3_int1 ) );
     if ( run0 ) {
@@ -914,8 +914,7 @@ void Processor::do_cycle() {
         // When timer 0 is in mode 3, TCON.TR1 controls also TH0.
         if ( run1 && mode0 == 3 ) {
             // TH0 uses inc_cycle directly! (never counts port flanks)
-            u8 &th0 = th0;
-            if ( th0 >= ( (u8) 0 ) - inc_cycle ) {
+            if ( th0 >= (u8) ( 0 - inc_cycle ) ) {
                 // Overflow in TH0
                 set_bit_to( tcon_tf1, true ); // Interrupt on TC1!
             }
