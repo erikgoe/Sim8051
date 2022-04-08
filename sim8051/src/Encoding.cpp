@@ -549,8 +549,9 @@ void substitute_command( String &str, size_t arg1_idx, size_t &arg2_idx, std::ve
     }
     if ( std::find( rev_sfr_names.begin(), rev_sfr_names.end(), arg2 ) == rev_sfr_names.end() && arg2 != "addr" &&
          arg2 != "imm" && !arg2.empty() ) {
-        if ( arg2[0] == '(' || arg2.find_first_not_of( "0123456789abcdef" ) != arg2.npos ) {
-            // Indirect or label
+        if ( arg2[0] == '(' ||
+             ( arg2.find_first_not_of( "0123456789abcdef" ) != arg2.npos && str.find( "mov dptr" ) != 0 ) ) {
+            // Indirect or label (and not the special instruction 0x90)
             if ( arg2[0] == '/' ) {
                 str.replace( arg2_idx, arg2.size(), "/addr" );
             } else {
@@ -801,8 +802,16 @@ void compile_assembly( const String &code, std::ostream &output ) {
                                     arg = arg.substr( 1, arg.size() - 2 );
                                 if ( opcode == 0x90 ) {
                                     // "mov dptr" with two bytes
-                                    hex.push_back( stoi( arg.substr( 0, 2 ), 0, 16 ) );
-                                    hex.push_back( stoi( arg.substr( 2 ), 0, 16 ) );
+                                    if ( real_arg1.find_first_not_of( "0123456789abcdef" ) == real_arg1.npos ) {
+                                        // Is direct value
+                                        hex.push_back( stoi( arg.substr( 0, 2 ), 0, 16 ) );
+                                        hex.push_back( stoi( arg.substr( 2 ), 0, 16 ) );
+                                    } else {
+                                        // Is label
+                                        label_slots16[arg].push_back( hex.size() );
+                                        hex.push_back( 0 );
+                                        hex.push_back( 0 );
+                                    }
                                 } else {
                                     // Only one byte
                                     val = static_cast<i8>( stoi( arg, 0, 16 ) );

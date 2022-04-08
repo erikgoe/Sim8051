@@ -13,6 +13,8 @@ I need a simulator for my little compiler project and didn't find a simple one t
 * A few keyboard shortcuts are supported: Space (single step), R (reset MCU), CTRL+Enter while editing (save & compile), P (run/pause), L (reload all files and compile).
 * Breakpoints can be set by clicking on the left column in assembly view. You can also change the "break instruction".
 * The simulation does not mirror the hardware one-to-one. Some features like interrupts might trigger one cycle too late or ports may behave differently.
+* Labels must contain at least one non-hexadecimal character to be usable.
+* Labels can be used with any jump instructions and intstruction 0x90 (mov dptr, <value/label>)
 
 ## Dependencies
 Install them with a package manager like "pacman" or follow the instructions on their website.

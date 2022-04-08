@@ -58,8 +58,8 @@ int main() {
     bool use_fix_target_frequency = false;
     std::vector<u16> op_code_indices; // Pointers to the op codes.
     auto processor = std::make_shared<Processor>();
-    String hex_filename = "tests/simple.hex";
-    String editor_asm_filename = "tests/simple.a51";
+    String hex_filename = "tests/hello.hex";
+    String editor_asm_filename = "tests/hello.a51";
     String editor_hex_file_dir = "tests";
     String editor_content = "";
 
@@ -100,7 +100,11 @@ int main() {
                         max_speed = false;
                         use_fix_target_frequency = false;
                     } else if ( evt.key.code == sf::Keyboard::R ) {
-                        processor->reset();
+                        if ( evt.key.shift ) {
+                            processor->full_reset();
+                        } else {
+                            processor->reset();
+                        }
                     } else if ( evt.key.code == sf::Keyboard::P ) {
                         max_speed = false;
                         steps_per_frame = steps_per_frame == 0 ? 1 : 0;
@@ -421,7 +425,7 @@ int main() {
 
         ImGui::Begin( "Editor" );
         {
-            should_load |= ImGui::InputText( "In file", &editor_asm_filename );
+            should_load |= ImGui::InputText( "In file", &editor_asm_filename, ImGuiInputTextFlags_EnterReturnsTrue );
             ImGui::InputText( "Out directory", &editor_hex_file_dir );
 
             should_load |= ImGui::Button( "Load" );

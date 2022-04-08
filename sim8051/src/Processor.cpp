@@ -425,17 +425,17 @@ void Processor::do_cycle() {
                 if ( ls_nibble == 4 ) {
                     pc += 3;
                     if ( a != arg1 )
-                        pc += *reinterpret_cast<i8 *>( second_operand );
+                        pc += *reinterpret_cast<i8 *>( &arg2 );
                     set_bit_to( carry_addr, a < arg1 );
                 } else if ( ls_nibble == 5 ) {
                     pc += 3;
                     if ( a != *value )
-                        pc += *reinterpret_cast<i8 *>( second_operand );
+                        pc += *reinterpret_cast<i8 *>( &arg2 );
                     set_bit_to( carry_addr, a < *value );
                 } else {
                     pc += 3;
                     if ( *value != arg1 )
-                        pc += *reinterpret_cast<i8 *>( second_operand );
+                        pc += *reinterpret_cast<i8 *>( &arg2 );
                     set_bit_to( carry_addr, *value < arg1 );
                 }
                 inc_pc = 0;
