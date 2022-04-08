@@ -12,13 +12,21 @@
 std::deque<String> global_log;
 sf::Clock last_global_log_timer;
 
+char to_human_readable_ascii( u8 c ) {
+    if ( c < ' ' || c >= 0x7f ) {
+        return '.';
+    } else {
+        return c;
+    }
+}
+
 // The main loop, including some stuff like scrolling
 int main() {
     // Initialize all the stuff
     sf::ContextSettings context_settings( 0, 0, 4 );
     sf::RenderWindow window( sf::VideoMode( 1200, 800, 32 ), "Sim8051", sf::Style::Default, context_settings );
     bool fullscreen = false;
-    window.setFramerateLimit( 60 );
+    window.setVerticalSyncEnabled( true );
     auto view = window.getDefaultView();
     window.setView( view );
     if ( !ImGui::SFML::Init( window ) ) {
@@ -308,8 +316,15 @@ int main() {
             while ( clipper.Step() ) {
                 for ( size_t i = clipper.DisplayStart; i < clipper.DisplayEnd; i++ ) {
                     String line = "Addr " + to_hex_str( i * 8 ) + ": ";
-                    for ( size_t j = 0; j < 8; j++ )
-                        line += " " + to_hex_str( processor->text[i * 8 + j] );
+                    String ascii = "  |  ";
+                    for ( size_t j = 0; j < 8; j++ ) {
+                        u8 byte = processor->text[i * 8 + j];
+                        line += " " + to_hex_str( byte );
+                        ascii +=
+                            ( to_human_readable_ascii( byte ) == '%' ? String( "%%" )
+                                                                     : String( 1, to_human_readable_ascii( byte ) ) );
+                    }
+                    line += ascii;
                     ImGui::Text( line.c_str() );
                 }
             }
@@ -325,8 +340,15 @@ int main() {
             while ( clipper.Step() ) {
                 for ( size_t i = clipper.DisplayStart; i < clipper.DisplayEnd; i++ ) {
                     String line = "Addr " + to_hex_str( i * 8 ) + ": ";
-                    for ( size_t j = 0; j < 8; j++ )
-                        line += " " + to_hex_str( processor->xram[i * 8 + j] );
+                    String ascii = "  |  ";
+                    for ( size_t j = 0; j < 8; j++ ) {
+                        u8 byte = processor->xram[i * 8 + j];
+                        line += " " + to_hex_str( byte );
+                        ascii +=
+                            ( to_human_readable_ascii( byte ) == '%' ? String( "%%" )
+                                                                     : String( 1, to_human_readable_ascii( byte ) ) );
+                    }
+                    line += ascii;
                     ImGui::Text( line.c_str() );
                 }
             }
@@ -342,8 +364,15 @@ int main() {
             while ( clipper.Step() ) {
                 for ( size_t i = clipper.DisplayStart; i < clipper.DisplayEnd; i++ ) {
                     String line = "Addr " + to_hex_str( i * 8 ) + ": ";
-                    for ( size_t j = 0; j < 8; j++ )
-                        line += " " + to_hex_str( processor->iram[i * 8 + j] );
+                    String ascii = "  |  ";
+                    for ( size_t j = 0; j < 8; j++ ) {
+                        u8 byte = processor->iram[i * 8 + j];
+                        line += " " + to_hex_str( byte );
+                        ascii +=
+                            ( to_human_readable_ascii( byte ) == '%' ? String( "%%" )
+                                                                     : String( 1, to_human_readable_ascii( byte ) ) );
+                    }
+                    line += ascii;
                     ImGui::Text( line.c_str() );
                 }
             }
