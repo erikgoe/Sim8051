@@ -32,6 +32,7 @@ int main() {
     bool should_save = false;
     bool should_compile = false;
     bool should_load = true;
+    int calc_val = 0;
 
     // ImGui configuration
     ImGuiIO &io = ImGui::GetIO();
@@ -481,6 +482,14 @@ int main() {
             }
         }
         ImGui::End();
+
+        ImGui::Begin( "Calculator" );
+        {
+            ImGui::InputInt( "DEC", &calc_val, 1, 10, ImGuiInputTextFlags_CharsDecimal );
+            ImGui::InputInt( "HEX", &calc_val, 1, 10, ImGuiInputTextFlags_CharsHexadecimal );
+        }
+        ImGui::End();
+
         // ImGui::ShowDemoWindow();
 
         ImGui::EndFrame();
