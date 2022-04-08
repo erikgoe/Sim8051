@@ -201,6 +201,11 @@ void Processor::do_cycle() {
     u8 inc_cycle = 2;
     u16 generate_jump_to = 0; // 0 means no jump
 
+    // Check for power down mode.
+    if ( pcon & 2 ) {
+        return; // No operations while powered down.
+    }
+
     // Interrupt detection
     if ( !is_bit_set( tcon_it0 ) ) {
         set_bit_to( tcon_ie0, !is_bit_set( p3_int0 ) );
@@ -266,8 +271,13 @@ void Processor::do_cycle() {
         iram[sp] = ( pc & 0xff00 ) >> 8;
         pc = generate_jump_to;
         inc_pc = 0;
-    } else {
-        // Execute the instruction.
+
+        // Wake up from idle
+        if ( is_in_interrupt && ( pcon & 1 ) ) {
+            pcon &= ~( (u8) 1 );
+        }
+    } else if ( !( pcon & 1 ) ) {
+        // Execute the instruction (if not in idle).
         u8 instr = text[pc];
         u8 arg1 = text[pc + (u16) 1];
         u8 arg2 = text[pc + (u16) 2];
@@ -804,6 +814,11 @@ void Processor::do_cycle() {
         }
     }
 
+    if ( pcon & 1 ) {
+        // Is in idle
+        inc_pc = 0;
+        inc_cycle = 1;
+    }
     pc += inc_pc;
     cycle_count += inc_cycle;
 
@@ -923,9 +938,9 @@ void Processor::do_cycle() {
     }
     timer_1_in_mem = is_bit_set( p3_t1 );
 
-    // Check breakpoints
-    if ( text[pc] == break_instruction ||
-         std::find( break_addresses.begin(), break_addresses.end(), pc ) != break_addresses.end() ) {
+    // Check breakpoints (if not in idle)
+    if ( !( pcon & 1 ) && ( text[pc] == break_instruction || std::find( break_addresses.begin(), break_addresses.end(),
+                                                                        pc ) != break_addresses.end() ) ) {
         // Hit breakpoint
         break_callback( *this );
     }
