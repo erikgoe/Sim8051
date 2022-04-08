@@ -6,6 +6,8 @@
 class Processor {
     u8 invalid_byte; // Used for invalid access (like accessing invalid direct addresses)
 
+    bool timer_0_in_mem = false;
+    bool timer_1_in_mem = false;
     bool int0_in_mem = false;
     bool int1_in_mem = false;
     bool is_in_interrupt = false;

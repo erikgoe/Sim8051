@@ -96,6 +96,8 @@ bool Processor::load_hex_code( const String &file ) {
 }
 
 void Processor::reset() {
+    timer_0_in_mem = false;
+    timer_1_in_mem = false;
     int0_in_mem = false;
     int1_in_mem = false;
     is_in_interrupt = false;
@@ -804,6 +806,123 @@ void Processor::do_cycle() {
 
     pc += inc_pc;
     cycle_count += inc_cycle;
+
+    // Timer 0 handling
+    u8 tmod_val = tmod;
+    u8 mode0 = tmod_val & 0b11;
+    u8 mode1 = tmod_val & 0b110000;
+    bool run0 = is_bit_set( tcon_tr0 ) && ( !( tmod & 0b1000 ) || !is_bit_set( p3_int0 ) );
+    bool run1 = is_bit_set( tcon_tr1 ) && ( !( tmod & 0b10000000 ) || !is_bit_set( p3_int1 ) );
+    if ( run0 ) {
+        u8 count = 0;
+        if ( tmod_val & 0b100 ) {
+            // Counter mode
+            if ( timer_0_in_mem != is_bit_set( p3_t0 ) && timer_0_in_mem )
+                count = 1;
+        } else {
+            // Timer mode
+            count = inc_cycle;
+        }
+        u8 &tl = tl0;
+        u8 &th = th0;
+        if ( mode0 == 0 ) {
+            // 13 bit counter
+            if ( tl >= ( (u8) 32 ) - count ) {
+                // Overflow to th
+                tl += count;
+                tl &= 0x1f;
+                th++;
+                if ( th == 0 ) // counter overflow
+                    set_bit_to( tcon_tf0, true );
+            } else {
+                tl += count;
+            }
+        } else if ( mode0 == 1 ) {
+            // 16 bit counter
+            if ( tl >= (u8) ( 0 - count ) ) {
+                // Overflow to th
+                th++;
+                if ( th == 0 ) // counter overflow
+                    set_bit_to( tcon_tf0, true );
+            }
+            tl += count;
+        } else if ( mode0 == 2 ) {
+            // 8 bit counter with auto reload.
+            if ( tl >= (u8) ( 0 - count ) ) {
+                // Overflow
+                set_bit_to( tcon_tf0, true );
+                tl += th; // Keep the uncounted increment.
+            }
+            tl += count;
+        } else if ( mode0 == 3 ) {
+            // 8 bit counting on TL0. TH0 is handled below
+            if ( tl >= (u8) ( 0 - count ) ) {
+                // Overflow in TL0
+                set_bit_to( tcon_tf0, true );
+            }
+            tl += count;
+        }
+    }
+    timer_0_in_mem = is_bit_set( p3_t0 );
+
+    // Timer 1 handling
+    if ( run1 || mode0 == 3 ) {
+        u8 count = 0;
+        if ( tmod_val & 0b1000000 ) {
+            // Counter mode
+            if ( timer_1_in_mem != is_bit_set( p3_t1 ) && timer_1_in_mem )
+                count = 1;
+        } else {
+            // Timer mode
+            count = inc_cycle;
+        }
+        u8 &tl = tl1;
+        u8 &th = th1;
+        if ( mode1 == 0 ) {
+            // 13 bit counter
+            if ( tl >= ( (u8) 32 ) - count ) {
+                // Overflow to th
+                tl += count;
+                tl &= 0x1f;
+                th++;
+                if ( th == 0 && mode0 != 3 ) // counter overflow
+                    set_bit_to( tcon_tf1, true );
+            } else {
+                tl += count;
+            }
+        } else if ( mode1 == 1 ) {
+            // 16 bit counter
+            if ( tl >= (u8) ( 0 - count ) ) {
+                // Overflow to th
+                th++;
+                if ( th == 0 && mode0 != 3 ) // counter overflow
+                    set_bit_to( tcon_tf1, true );
+            }
+            tl += count;
+        } else if ( mode1 == 2 ) {
+            // 8 bit counter with auto reload.
+            if ( tl >= (u8) ( 0 - count ) ) {
+                // Overflow
+                if ( mode0 != 3 )
+                    set_bit_to( tcon_tf1, true );
+                tl += th; // Keep the uncounted increment.
+            }
+            tl += count;
+        }
+        // Does nothing in mode 3.
+
+        // When timer 0 is in mode 3, TCON.TR1 controls also TH0.
+        if ( run1 && mode0 == 3 ) {
+            // TH0 uses inc_cycle directly! (never counts port flanks)
+            u8 &th0 = th0;
+            if ( th0 >= ( (u8) 0 ) - inc_cycle ) {
+                // Overflow in TH0
+                set_bit_to( tcon_tf1, true ); // Interrupt on TC1!
+            }
+            th0 += inc_cycle;
+        }
+    }
+    timer_1_in_mem = is_bit_set( p3_t1 );
 
     // Check breakpoints
     if ( text[pc] == break_instruction ||
