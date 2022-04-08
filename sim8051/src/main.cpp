@@ -171,8 +171,11 @@ int main() {
             max_speed = false;
             use_fix_target_frequency = true;
         }
-        if ( ImGui::Button( "Reset MCU" ) ) {
+        if ( ImGui::Button( "Reset Pin" ) ) {
             processor->reset();
+        }
+        if ( ImGui::Button( "Reset MCU (full)" ) ) {
+            processor->full_reset();
         }
         ImGui::Spacing();
         if ( ImGui::InputText( "Hex file", &hex_filename, ImGuiInputTextFlags_EnterReturnsTrue ) |
@@ -190,6 +193,14 @@ int main() {
         String break_instr_str = to_hex_str( processor->break_instruction );
         if ( ImGui::InputText( "Break instruction", &break_instr_str, ImGuiInputTextFlags_EnterReturnsTrue ) ) {
             processor->break_instruction = stoi( break_instr_str, 0, 16 );
+        }
+
+        ImGui::Spacing();
+        if ( ImGui::Button( "Interrupt 0" ) ) {
+            processor->set_bit_to( 0xB2, 0 );
+        }
+        if ( ImGui::Button( "Interrupt 1" ) ) {
+            processor->set_bit_to( 0xB3, 0 );
         }
 
         ImGui::End();
@@ -240,6 +251,52 @@ int main() {
             String( "R6   = " + to_hex_str( *( r0_ptr + 6 ) ) + " (" + to_string( *( r0_ptr + 6 ) ) + ")" ).c_str() );
         ImGui::Text(
             String( "R7   = " + to_hex_str( *( r0_ptr + 7 ) ) + " (" + to_string( *( r0_ptr + 7 ) ) + ")" ).c_str() );
+
+        ImGui::Spacing();
+        ImGui::Text( String( "P0   = " + to_hex_str( processor->direct_acc( 0x80 ) ) + " (" +
+                             to_string( processor->direct_acc( 0x80 ) ) + ")" )
+                         .c_str() );
+        ImGui::Text( String( "P1   = " + to_hex_str( processor->direct_acc( 0x90 ) ) + " (" +
+                             to_string( processor->direct_acc( 0x90 ) ) + ")" )
+                         .c_str() );
+        ImGui::Text( String( "P2   = " + to_hex_str( processor->direct_acc( 0xA0 ) ) + " (" +
+                             to_string( processor->direct_acc( 0xA0 ) ) + ")" )
+                         .c_str() );
+        ImGui::Text( String( "P3   = " + to_hex_str( processor->direct_acc( 0xB0 ) ) + " (" +
+                             to_string( processor->direct_acc( 0xB0 ) ) + ")" )
+                         .c_str() );
+
+        ImGui::Spacing();
+        ImGui::Text( String( "PCON = " + to_hex_str( processor->direct_acc( 0x87 ) ) + " (" +
+                             to_string( processor->direct_acc( 0x87 ) ) + ")" )
+                         .c_str() );
+        ImGui::Text( String( "IE   = " + to_hex_str( processor->direct_acc( 0xA8 ) ) + " (" +
+                             to_string( processor->direct_acc( 0xA8 ) ) + ")" )
+                         .c_str() );
+        ImGui::Text( String( "IP   = " + to_hex_str( processor->direct_acc( 0xB8 ) ) + " (" +
+                             to_string( processor->direct_acc( 0xB8 ) ) + ")" )
+                         .c_str() );
+        ImGui::Text( String( "TCON = " + to_hex_str( processor->direct_acc( 0x88 ) ) + " (" +
+                             to_string( processor->direct_acc( 0x88 ) ) + ")" )
+                         .c_str() );
+        ImGui::Text( String( "TMOD = " + to_hex_str( processor->direct_acc( 0x89 ) ) + " (" +
+                             to_string( processor->direct_acc( 0x89 ) ) + ")" )
+                         .c_str() );
+        ImGui::Text( String( "TH0  = " + to_hex_str( processor->direct_acc( 0x9C ) ) + " (" +
+                             to_string( processor->direct_acc( 0x9C ) ) + ")" )
+                         .c_str() );
+        ImGui::SameLine();
+        ImGui::Text( String( "TL0  = " + to_hex_str( processor->direct_acc( 0x9A ) ) + " (" +
+                             to_string( processor->direct_acc( 0x9A ) ) + ")" )
+                         .c_str() );
+        ImGui::Text( String( "TH1  = " + to_hex_str( processor->direct_acc( 0x9D ) ) + " (" +
+                             to_string( processor->direct_acc( 0x9D ) ) + ")" )
+                         .c_str() );
+        ImGui::SameLine();
+        ImGui::Text( String( "TL1  = " + to_hex_str( processor->direct_acc( 0x9B ) ) + " (" +
+                             to_string( processor->direct_acc( 0x9B ) ) + ")" )
+                         .c_str() );
+
         ImGui::End();
 
         ImGui::Begin( "Text (ROM)" );

@@ -96,12 +96,26 @@ bool Processor::load_hex_code( const String &file ) {
 }
 
 void Processor::reset() {
+    int0_in_mem = false;
+    int1_in_mem = false;
+    is_in_interrupt = false;
+    is_in_high_prio_intr = false;
+    was_in_interrupt = false;
+
     sfr.fill( 0 );
+    pc = 0;
+    direct_acc( 0x80 ) = 0xff;
+    direct_acc( 0x90 ) = 0xff;
+    direct_acc( 0xA0 ) = 0xff;
+    direct_acc( 0xB0 ) = 0xff;
+    direct_acc( 0x81 ) = 0x07;
+}
+
+void Processor::full_reset() {
+    reset();
     iram.fill( 0 );
     xram.fill( 0 );
-    pc = 0;
     cycle_count = 0;
-    direct_acc( 0x81 ) = 0x07;
 }
 
 bool parity_of_byte( u8 byte ) {
@@ -114,10 +128,6 @@ bool parity_of_byte( u8 byte ) {
 }
 
 void Processor::do_cycle() {
-    u8 instr = text[pc];
-    u8 arg1 = text[pc + (u16) 1];
-    u8 arg2 = text[pc + (u16) 2];
-
     // Common constants
     constexpr u8 parity_addr = 0xD0; // Address of parity bit.
     constexpr u8 overflow_addr = 0xD2; // Address of overflow flag.
@@ -125,31 +135,50 @@ void Processor::do_cycle() {
     constexpr u8 carry_addr = 0xD7; // Address of carry bit.
     constexpr u8 acc_0_addr = 0xE0; // Address of first bit in accumulator.
     constexpr u8 acc_7_addr = 0xE7; // Address of last bit in accumulator.
+    constexpr u8 p3_int0 = 0xB2; // Address of the INT0 bit of P3.
+    constexpr u8 p3_int1 = 0xB3; // Address of the INT1 bit of P3.
+    constexpr u8 p3_t0 = 0xB4; // Address of the T0 bit of P3.
+    constexpr u8 p3_t1 = 0xB5; // Address of the T1 bit of P3.
+    constexpr u8 p3_wr = 0xB6; // Address of the WR bit of P3.
+    constexpr u8 p3_rd = 0xB7; // Address of the RD bit of P3.
+
+    constexpr u8 ie_ea = 0xAF; // Address of the EA bit of IE.
+    constexpr u8 ie_et1 = 0xAB; // Address of the ET1 bit of IE.
+    constexpr u8 ie_ex1 = 0xAA; // Address of the EX1 bit of IE.
+    constexpr u8 ie_et0 = 0xA9; // Address of the ET0 bit of IE.
+    constexpr u8 ie_ex0 = 0xA8; // Address of the EX0 bit of IE.
+    constexpr u8 ip_pt1 = 0xBB; // Address of the PT1 bit of IP.
+    constexpr u8 ip_px1 = 0xBA; // Address of the PX1 bit of IP.
+    constexpr u8 ip_pt0 = 0xB9; // Address of the PT0 bit of IP.
+    constexpr u8 ip_px0 = 0xB8; // Address of the PX0 bit of IP.
+    constexpr u8 tcon_tf1 = 0x8F; // Address of the TF1 bit of TCON.
+    constexpr u8 tcon_tr1 = 0x8E; // Address of the TR1 bit of TCON.
+    constexpr u8 tcon_tf0 = 0x8D; // Address of the TF0 bit of TCON.
+    constexpr u8 tcon_tr0 = 0x8C; // Address of the TR0 bit of TCON.
+    constexpr u8 tcon_ie1 = 0x8B; // Address of the IE1 bit of TCON.
+    constexpr u8 tcon_it1 = 0x8A; // Address of the IT1 bit of TCON.
+    constexpr u8 tcon_ie0 = 0x89; // Address of the IE0 bit of TCON.
+    constexpr u8 tcon_it0 = 0x88; // Address of the IT0 bit of TCON.
 
     // SFRs
     auto &a = direct_acc( 0xE0 );
     auto &b = direct_acc( 0xF0 );
     auto &psw = direct_acc( 0xD0 );
-    // auto &ip = direct_acc(0xB8);
-    // auto &ie = direct_acc(0xA8);
+    auto &ip = direct_acc( 0xB8 );
+    auto &ie = direct_acc( 0xA8 );
     auto &dpl = direct_acc( 0x82 );
     auto &dph = direct_acc( 0x83 );
-    // auto &p0 = direct_acc(0x80);
-    // auto &p1 = direct_acc(0x90);
+    auto &p0 = direct_acc( 0x80 );
+    auto &p1 = direct_acc( 0x90 );
     auto &p2 = direct_acc( 0xA0 );
-    // auto &p3 = direct_acc(0xB0);
-    // auto &pcon = direct_acc(0x87);
-    // auto &scon = direct_acc(0x98);
-    // auto &sbuf = direct_acc(0x99);
-    // auto &tcon = direct_acc(0x88);
-    // auto &t2con = direct_acc(0xC8);
-    // auto &tmod = direct_acc(0x89);
-    // auto &tl0 = direct_acc(0x9A);
-    // auto &tl1 = direct_acc(0x9B);
-    // auto &tl2 = direct_acc(0xCC);
-    // auto &th0 = direct_acc(0x9C);
-    // auto &th1 = direct_acc(0x9D);
-    // auto &th2 = direct_acc(0xCD);
+    auto &p3 = direct_acc( 0xB0 );
+    auto &pcon = direct_acc( 0x87 );
+    auto &tcon = direct_acc( 0x88 );
+    auto &tmod = direct_acc( 0x89 );
+    auto &tl0 = direct_acc( 0x9A );
+    auto &tl1 = direct_acc( 0x9B );
+    auto &th0 = direct_acc( 0x9C );
+    auto &th1 = direct_acc( 0x9D );
     auto &sp = direct_acc( 0x81 );
 
     auto bank_nr = ( psw & 0x18 ) >> 3;
@@ -168,532 +197,606 @@ void Processor::do_cycle() {
     i16 result;
     u16 inc_pc = 1;
     u8 inc_cycle = 2;
+    u16 generate_jump_to = 0; // 0 means no jump
 
-    // Execute the instruction.
-    u8 ls_nibble = instr & 0xf;
-    u8 ms_nibble = ( instr & 0xf0 ) >> 4;
-    if ( ls_nibble > 3 ) {
-        // Regular instruction
-        u8 *value;
-        u8 *second_operand;
-        if ( ls_nibble == 4 ) {
-            // Immediate
-            value = &arg1;
-            second_operand = &arg2;
-            inc_pc = 2;
-        } else if ( ls_nibble == 5 ) {
-            // Direct access
-            value = &direct_acc( arg1 );
-            second_operand = &arg2;
-            inc_pc = 2;
-        } else if ( ls_nibble == 6 ) {
-            // Indirect R0 access
-            value = &iram[r0];
-            second_operand = &arg1;
-        } else if ( ls_nibble == 7 ) {
-            // Indirect R1 access
-            value = &iram[r1];
-            second_operand = &arg1;
-        } else {
-            // Register
-            value = r0_ptr + ls_nibble - 8;
-            second_operand = &arg1;
+    // Interrupt detection
+    if ( !is_bit_set( tcon_it0 ) ) {
+        set_bit_to( tcon_ie0, !is_bit_set( p3_int0 ) );
+    }
+    if ( int0_in_mem != is_bit_set( p3_int0 ) ) {
+        int0_in_mem = is_bit_set( p3_int0 );
+        if ( !int0_in_mem && is_bit_set( tcon_it0 ) )
+            set_bit_to( tcon_ie0, true );
+    }
+    if ( !is_bit_set( tcon_it1 ) ) {
+        set_bit_to( tcon_ie1, !is_bit_set( p3_int1 ) );
+    }
+    if ( int1_in_mem != is_bit_set( p3_int1 ) ) {
+        int1_in_mem = is_bit_set( p3_int1 );
+        if ( !int1_in_mem && is_bit_set( tcon_it1 ) )
+            set_bit_to( tcon_ie1, true );
+    }
+
+    // Interupt handling
+    if ( is_bit_set( ie_ea ) && !is_in_high_prio_intr && !was_in_interrupt ) {
+        if ( is_bit_set( tcon_ie0 ) && is_bit_set( ie_ex0 ) && ( !is_in_interrupt || is_bit_set( ip_px0 ) ) ) {
+            // Trigger interrupt EX0
+            is_in_interrupt = true;
+            is_in_high_prio_intr = is_bit_set( ip_px0 );
+            generate_jump_to = 0x03;
+
+            // Clear flag
+            if ( is_bit_set( tcon_it0 ) )
+                set_bit_to( tcon_ie0, 0 );
+        } else if ( is_bit_set( tcon_tf0 ) && is_bit_set( ie_et0 ) && ( !is_in_interrupt || is_bit_set( ip_pt0 ) ) ) {
+            // Trigger timer 0 interrupt
+            is_in_interrupt = true;
+            is_in_high_prio_intr = is_bit_set( ip_pt0 );
+            generate_jump_to = 0x0B;
+            set_bit_to( tcon_tf0, 0 ); // Clear flag
+        } else if ( is_bit_set( tcon_ie1 ) && is_bit_set( ie_ex1 ) && ( !is_in_interrupt || is_bit_set( ip_px1 ) ) ) {
+            // Trigger interrupt EX1
+            is_in_interrupt = true;
+            is_in_high_prio_intr = is_bit_set( ip_px1 );
+            generate_jump_to = 0x13;
+
+            // Clear flag
+            if ( is_bit_set( tcon_it1 ) )
+                set_bit_to( tcon_ie1, 0 );
+        } else if ( is_bit_set( tcon_tf1 ) && is_bit_set( ie_et1 ) && ( !is_in_interrupt || is_bit_set( ip_pt1 ) ) ) {
+            // Trigger timer 1 interrupt
+            is_in_interrupt = true;
+            is_in_high_prio_intr = is_bit_set( ip_pt1 );
+            generate_jump_to = 0x1B;
+            set_bit_to( tcon_tf1, 0 ); // Clear flag
         }
+    }
+    if ( was_in_interrupt )
+        was_in_interrupt = false;
 
-        // Process the instruction
-        switch ( ms_nibble ) {
-        case 0x0: // INC operand
-            if ( ls_nibble == 4 ) {
-                a++;
-                set_bit_to( parity_addr, parity_of_byte( a ) );
-                inc_pc = 1;
-            } else {
-                ( *value )++;
-            }
-            inc_cycle = 1;
-            break;
-        case 0x1: // DEC operand
-            if ( ls_nibble == 4 ) {
-                a--;
-                set_bit_to( parity_addr, parity_of_byte( a ) );
-                inc_pc = 1;
-            } else {
-                ( *value )--;
-            }
-            inc_cycle = 1;
-            break;
-        case 0x2: // ADD A,operand
-            result = static_cast<i16>( a ) + static_cast<i16>( *value );
-            set_bit_to( overflow_addr, result > 0xff );
-            set_bit_to( carry_addr, result < 0 );
-            set_bit_to( auxilary_addr, ( a & 0b1000 ) == 1 && ( static_cast<u8>( result ) & 0b1000 ) == 0 );
-            a = result;
-            set_bit_to( parity_addr, parity_of_byte( a ) );
-            inc_cycle = 1;
-            break;
-        case 0x3: // ADDC A,operand
-            result = static_cast<i16>( a ) + static_cast<i16>( *value ) + ( is_bit_set( carry_addr ) ? 1 : 0 );
-            set_bit_to( overflow_addr, result > 0xff );
-            set_bit_to( carry_addr, result < 0 );
-            set_bit_to( auxilary_addr, ( a & 0b1000 ) == 1 && ( static_cast<u8>( result ) & 0b1000 ) == 0 );
-            a = result;
-            set_bit_to( parity_addr, parity_of_byte( a ) );
-            inc_cycle = 1;
-            break;
-        case 0x4: // ORL A,operand
-            a |= *value;
-            set_bit_to( parity_addr, parity_of_byte( a ) );
-            inc_cycle = 1;
-            break;
-        case 0x5: // ANL A,operand
-            a &= *value;
-            set_bit_to( parity_addr, parity_of_byte( a ) );
-            inc_cycle = 1;
-            break;
-        case 0x6: // XRL A,operand
-            a ^= *value;
-            set_bit_to( parity_addr, parity_of_byte( a ) );
-            inc_cycle = 1;
-            break;
-        case 0x7: // MOV operand,#data
-            if ( ls_nibble == 4 ) {
-                a = *value;
-                set_bit_to( parity_addr, parity_of_byte( a ) );
-            } else {
-                *value = *second_operand;
-                inc_pc++;
-            }
-            if ( ls_nibble != 5 )
-                inc_cycle = 1;
-            break;
-        case 0x8: // MOV address,operand
-            if ( ls_nibble == 4 ) {
-                // Actually encodes division
-                set_bit_to( carry_addr, false );
-                if ( b == 0 ) {
-                    log( "Division by zero!" );
-                    set_bit_to( overflow_addr, true );
-                } else {
-                    auto rem = a - a / b;
-                    a = a / b;
-                    b = rem;
-                    set_bit_to( overflow_addr, false );
-                    set_bit_to( parity_addr, parity_of_byte( a ) );
-                }
-                inc_pc = 1;
-                inc_cycle = 4;
-            } else if ( ls_nibble == 5 ) {
-                direct_acc( arg2 ) = *value; // Swapped parameters!
-                inc_pc = 3;
-            } else {
-                direct_acc( arg1 ) = *value;
-                inc_pc = 2;
-            }
-            break;
-        case 0x9: // SUBB A,operand
-            result = static_cast<i16>( a ) - static_cast<i16>( *value ) - ( is_bit_set( carry_addr ) ? 1 : 0 );
-            set_bit_to( overflow_addr, result > 0xff );
-            set_bit_to( carry_addr, result < 0 );
-            set_bit_to( auxilary_addr, ( a & 0b1000 ) == 1 && ( static_cast<u8>( result ) & 0b1000 ) == 0 );
-            a = result;
-            set_bit_to( parity_addr, parity_of_byte( a ) );
-            inc_cycle = 1;
-            break;
-        case 0xA: // MOV operand,address
-            if ( ls_nibble == 4 ) {
-                // Actually encodes multiplication
-                set_bit_to( carry_addr, false );
-                u16 prod = static_cast<u16>( a ) * static_cast<u16>( b );
-                a = prod;
-                b = prod >> 8;
-                set_bit_to( overflow_addr, prod > 0xff );
-                set_bit_to( parity_addr, parity_of_byte( a ) );
-                inc_pc = 1;
-                inc_cycle = 4;
-            } else if ( ls_nibble == 5 ) {
-                // Reserved instruction
-                log( "Executed reserved instruction A5!" );
-                inc_pc = 1;
-                inc_cycle = 1;
-            } else {
-                *value = direct_acc( arg1 );
-                inc_pc = 2;
-            }
-            break;
-        case 0xB: // CJNE operand,#data,offset
-            if ( ls_nibble == 4 ) {
-                pc += 3;
-                if ( a != arg1 )
-                    pc += *reinterpret_cast<i8 *>( second_operand );
-                set_bit_to( carry_addr, a < arg1 );
-            } else if ( ls_nibble == 5 ) {
-                pc += 3;
-                if ( a != *value )
-                    pc += *reinterpret_cast<i8 *>( second_operand );
-                set_bit_to( carry_addr, a < *value );
-            } else {
-                pc += 3;
-                if ( *value != arg1 )
-                    pc += *reinterpret_cast<i8 *>( second_operand );
-                set_bit_to( carry_addr, *value < arg1 );
-            }
-            inc_pc = 0;
-            break;
-        case 0xC: // XCH A,operand
-            if ( ls_nibble == 4 ) {
-                // Actually encodes swap A nibbles
-                a = ( ( a & 0xf ) << 4 ) | ( ( a & 0xf0 ) >> 4 );
-                inc_pc = 1;
-            } else {
-                auto tmp = *value;
-                *value = a;
-                a = tmp;
-                set_bit_to( parity_addr, parity_of_byte( a ) );
-                inc_pc = ls_nibble == 5 ? 2 : 1;
-            }
-            inc_cycle = 1;
-            break;
-        case 0xD: // DJNZ operand,offset
-            if ( ls_nibble == 4 ) {
-                // Actually encodes DA A
-                if ( ( a & 0xf ) > 9 || is_bit_set( auxilary_addr ) ) {
-                    if ( static_cast<u16>( a ) + 6 > 0xff )
-                        set_bit_to( carry_addr, true );
-                    a += 6;
-                }
-                if ( ( ( a & 0xf0 ) >> 4 ) > 9 || is_bit_set( carry_addr ) ) {
-                    if ( static_cast<u16>( a ) + 6 > 0xff )
-                        set_bit_to( carry_addr, true );
-                    a += 0x60;
-                }
-                set_bit_to( parity_addr, parity_of_byte( a ) );
-                inc_pc = 1;
-                inc_cycle = 1;
-            } else if ( ls_nibble == 6 || ls_nibble == 7 ) {
-                // Actually encodes XCHD
-                u8 tmp = *value & 0xf;
-                *value = ( *value & 0xf0 ) | ( a & 0xf );
-                a = ( a & 0xf0 ) | tmp;
-                inc_pc = 1;
-                inc_cycle = 1;
-            } else if ( ls_nibble == 5 ) {
-                pc += 3; // Documentation specifies 2, but 3 makes more sense.
-                ( *value )--;
-                if ( *value != 0 )
-                    pc += *reinterpret_cast<i8 *>( second_operand );
-                inc_pc = 0;
-            } else {
-                pc += 2;
-                ( *value )--;
-                if ( *value != 0 )
-                    pc += *reinterpret_cast<i8 *>( &arg1 );
-                inc_pc = 0;
-            }
-            break;
-        case 0xE: // MOV A,operand
-            if ( ls_nibble == 4 ) {
-                // Actually encodes CLR A
-                a = 0;
-                inc_pc = 1;
-            } else {
-                a = *value;
-                set_bit_to( parity_addr, parity_of_byte( a ) );
-            }
-            inc_cycle = 1;
-            break;
-        case 0xF: // MOV operand,A
-            if ( ls_nibble == 4 ) {
-                // Actually encodes CPL A
-                a = ~a;
-                inc_pc = 1;
-            } else {
-                *value = a;
-                set_bit_to( parity_addr, parity_of_byte( a ) );
-            }
-            inc_cycle = 1;
-            break;
+    if ( generate_jump_to != 0 ) {
+        // Generate an inline jump to the next instruction
 
-        default:
-            break;
-        }
+        // Basically a lcall
+        sp++;
+        iram[sp] = pc & 0xff;
+        sp++;
+        iram[sp] = ( pc & 0xff00 ) >> 8;
+        pc = generate_jump_to;
+        inc_pc = 0;
     } else {
-        // Irregular instruction
-        if ( ( instr & 0b11111 ) == 1 ) {
-            // AJMP addr11
-            pc += 2;
-            pc = ( pc & 0b1111100000000000 ) + ( static_cast<u16>( instr & 0b11100000 ) << 3 ) + arg1;
-            inc_pc = 0;
-        } else if ( ( instr & 0b11111 ) == 0x11 ) {
-            // ACALL addr11
-            pc += 2;
-            sp++;
-            iram[sp] = pc & 0xff;
-            sp++;
-            iram[sp] = pc & 0xff00;
-            pc = ( pc & 0b1111100000000000 ) + ( static_cast<u16>( instr & 0b11100000 ) << 3 ) + arg1;
-            inc_pc = 0;
-        } else {
-            if ( ls_nibble == 0 ) {
-                switch ( ms_nibble ) {
-                case 0x0: // NOP
-                    inc_cycle = 1;
-                    break;
-                case 0x1: // JBC bit,offset
-                    pc += 3;
-                    if ( is_bit_set( arg1 ) ) {
-                        set_bit_to( arg1, false );
-                        pc += *reinterpret_cast<i8 *>( &arg2 );
-                    }
-                    inc_pc = 0;
-                    break;
-                case 0x2: // JB bit,offset
-                    pc += 3;
-                    if ( is_bit_set( arg1 ) ) {
-                        pc += *reinterpret_cast<i8 *>( &arg2 );
-                    }
-                    inc_pc = 0;
-                    break;
-                case 0x3: // JNB bit,offset
-                    pc += 3;
-                    if ( !is_bit_set( arg1 ) ) {
-                        pc += *reinterpret_cast<i8 *>( &arg2 );
-                    }
-                    inc_pc = 0;
-                    break;
-                case 0x4: // JC offset
-                    pc += 2;
-                    if ( is_bit_set( carry_addr ) ) {
-                        pc += *reinterpret_cast<i8 *>( &arg1 );
-                    }
-                    inc_pc = 0;
-                    break;
-                case 0x5: // JNC offset
-                    pc += 2;
-                    if ( !is_bit_set( carry_addr ) ) {
-                        pc += *reinterpret_cast<i8 *>( &arg1 );
-                    }
-                    inc_pc = 0;
-                    break;
-                case 0x6: // JZ offset
-                    pc += 2;
-                    if ( a == 0 ) {
-                        pc += *reinterpret_cast<i8 *>( &arg1 );
-                    }
-                    inc_pc = 0;
-                    break;
-                case 0x7: // JNZ offset
-                    pc += 2;
-                    if ( a != 0 ) {
-                        pc += *reinterpret_cast<i8 *>( &arg1 );
-                    }
-                    inc_pc = 0;
-                    break;
-                case 0x8: // SJMP offset
-                    pc += 2 + *reinterpret_cast<i8 *>( &arg1 );
-                    inc_pc = 0;
-                    break;
-                case 0x9: // MOV DPTR,#data16
-                    dph = arg1;
-                    dpl = arg2;
-                    inc_pc = 3;
-                    break;
-                case 0xA: // ORL C,/bit
-                    set_bit_to( carry_addr, is_bit_set( carry_addr ) | !is_bit_set( arg1 ) );
-                    inc_pc = 2;
-                    break;
-                case 0xB: // ANL C,/bit
-                    set_bit_to( carry_addr, is_bit_set( carry_addr ) & !is_bit_set( arg1 ) );
-                    inc_pc = 2;
-                    break;
-                case 0xC: // PUSH address
-                    sp++;
-                    iram[sp] = direct_acc( arg1 );
-                    inc_pc = 2;
-                    break;
-                case 0xD: // POP address
-                    direct_acc( arg1 ) = iram[sp];
-                    sp--;
-                    inc_pc = 2;
-                    break;
-                case 0xE: // MOVX A,@DPTR
-                    a = xram[( static_cast<u16>( dph ) << 8 ) + dpl];
-                    set_bit_to( parity_addr, parity_of_byte( a ) );
-                    break;
-                case 0xF: // MOVX @DPTR,A
-                    xram[( static_cast<u16>( dph ) << 8 ) | dpl] = a; // Missing in documentation, but this makes sense.
-                    break;
+        // Execute the instruction.
+        u8 instr = text[pc];
+        u8 arg1 = text[pc + (u16) 1];
+        u8 arg2 = text[pc + (u16) 2];
+        u8 ls_nibble = instr & 0xf;
+        u8 ms_nibble = ( instr & 0xf0 ) >> 4;
+        if ( ls_nibble > 3 ) {
+            // Regular instruction
+            u8 *value;
+            u8 *second_operand;
+            if ( ls_nibble == 4 ) {
+                // Immediate
+                value = &arg1;
+                second_operand = &arg2;
+                inc_pc = 2;
+            } else if ( ls_nibble == 5 ) {
+                // Direct access
+                value = &direct_acc( arg1 );
+                second_operand = &arg2;
+                inc_pc = 2;
+            } else if ( ls_nibble == 6 ) {
+                // Indirect R0 access
+                value = &iram[r0];
+                second_operand = &arg1;
+            } else if ( ls_nibble == 7 ) {
+                // Indirect R1 access
+                value = &iram[r1];
+                second_operand = &arg1;
+            } else {
+                // Register
+                value = r0_ptr + ls_nibble - 8;
+                second_operand = &arg1;
+            }
 
-                default:
-                    break;
+            // Process the instruction
+            switch ( ms_nibble ) {
+            case 0x0: // INC operand
+                if ( ls_nibble == 4 ) {
+                    a++;
+                    set_bit_to( parity_addr, parity_of_byte( a ) );
+                    inc_pc = 1;
+                } else {
+                    ( *value )++;
                 }
-            } else if ( ls_nibble == 2 ) {
-                switch ( ms_nibble ) {
-                case 0x0: // LJMP addr16
-                    pc = ( static_cast<u16>( arg1 ) << 8 ) | arg2;
-                    inc_pc = 0;
-                    break;
-                case 0x1: // LCALL addr16
-                    pc += 3;
-                    sp++;
-                    iram[sp] = pc & 0xff;
-                    sp++;
-                    iram[sp] = ( pc & 0xff00 ) >> 8;
-                    pc = ( static_cast<u16>( arg1 ) << 8 ) | arg2;
-                    inc_pc = 0;
-                    break;
-                case 0x2: // RET
-                    pc = ( static_cast<u16>( iram[sp] ) << 8 ) | iram[sp - 1];
-                    sp -= 2;
-                    inc_pc = 0;
-                    break;
-                case 0x3: // RETI
-                    pc = ( static_cast<u16>( iram[sp] ) << 8 ) | iram[sp - 1];
-                    sp -= 2;
-                    inc_pc = 0;
-                    // TODO restore interrupt logic.
-                    break;
-                case 0x4: // ORL address,A
-                    direct_acc( arg1 ) |= a;
-                    inc_pc = 2;
-                    inc_cycle = 1;
-                    break;
-                case 0x5: // ANL address,A
-                    direct_acc( arg1 ) &= a;
-                    inc_pc = 2;
-                    inc_cycle = 1;
-                    break;
-                case 0x6: // XRL address,A
-                    direct_acc( arg1 ) ^= a;
-                    inc_pc = 2;
-                    inc_cycle = 1;
-                    break;
-                case 0x7: // ORL C,bit
-                    set_bit_to( carry_addr, is_bit_set( carry_addr ) | is_bit_set( arg1 ) );
-                    inc_pc = 2;
-                    break;
-                case 0x8: // ANL C,bit
-                    set_bit_to( carry_addr, is_bit_set( carry_addr ) & is_bit_set( arg1 ) );
-                    inc_pc = 2;
-                    break;
-                case 0x9: // MOV bit,C
-                    set_bit_to( arg1, is_bit_set( carry_addr ) );
-                    inc_pc = 2;
-                    break;
-                case 0xA: // MOV C,bit
-                    set_bit_to( carry_addr, is_bit_set( arg1 ) );
-                    inc_pc = 2;
-                    inc_cycle = 1;
-                    break;
-                case 0xB: // CPL bit
-                    set_bit_to( arg1, !is_bit_set( arg1 ) );
-                    inc_pc = 2;
-                    inc_cycle = 1;
-                    break;
-                case 0xC: // CLR bit
-                    set_bit_to( arg1, false );
-                    inc_pc = 2;
-                    inc_cycle = 1;
-                    break;
-                case 0xD: // SETB bit
-                    set_bit_to( arg1, true );
-                    inc_pc = 2;
-                    inc_cycle = 1;
-                    break;
-                case 0xE: // MOVX A,@R0
-                    a = xram[( static_cast<u16>( p2 ) << 8 ) + r0];
+                inc_cycle = 1;
+                break;
+            case 0x1: // DEC operand
+                if ( ls_nibble == 4 ) {
+                    a--;
                     set_bit_to( parity_addr, parity_of_byte( a ) );
-                    break;
-                case 0xF: // MOVX @R0,A
-                    xram[( static_cast<u16>( p2 ) << 8 ) + r0] = a;
-                    break;
-
-                default:
-                    break;
+                    inc_pc = 1;
+                } else {
+                    ( *value )--;
                 }
-            } else if ( ls_nibble == 3 ) {
-                switch ( ms_nibble ) {
-                case 0x0: // RR A
-                    bit = is_bit_set( acc_0_addr );
-                    a >>= 1;
-                    if ( bit )
-                        a |= 0b10000000;
-                    inc_cycle = 1;
-                    break;
-                case 0x1: // RRC A
-                    bit = is_bit_set( acc_0_addr );
-                    a >>= 1;
-                    set_bit_to( acc_7_addr, carry_addr );
-                    set_bit_to( carry_addr, bit );
+                inc_cycle = 1;
+                break;
+            case 0x2: // ADD A,operand
+                result = static_cast<i16>( a ) + static_cast<i16>( *value );
+                set_bit_to( overflow_addr, result > 0xff );
+                set_bit_to( carry_addr, result < 0 );
+                set_bit_to( auxilary_addr, ( a & 0b1000 ) == 1 && ( static_cast<u8>( result ) & 0b1000 ) == 0 );
+                a = result;
+                set_bit_to( parity_addr, parity_of_byte( a ) );
+                inc_cycle = 1;
+                break;
+            case 0x3: // ADDC A,operand
+                result = static_cast<i16>( a ) + static_cast<i16>( *value ) + ( is_bit_set( carry_addr ) ? 1 : 0 );
+                set_bit_to( overflow_addr, result > 0xff );
+                set_bit_to( carry_addr, result < 0 );
+                set_bit_to( auxilary_addr, ( a & 0b1000 ) == 1 && ( static_cast<u8>( result ) & 0b1000 ) == 0 );
+                a = result;
+                set_bit_to( parity_addr, parity_of_byte( a ) );
+                inc_cycle = 1;
+                break;
+            case 0x4: // ORL A,operand
+                a |= *value;
+                set_bit_to( parity_addr, parity_of_byte( a ) );
+                inc_cycle = 1;
+                break;
+            case 0x5: // ANL A,operand
+                a &= *value;
+                set_bit_to( parity_addr, parity_of_byte( a ) );
+                inc_cycle = 1;
+                break;
+            case 0x6: // XRL A,operand
+                a ^= *value;
+                set_bit_to( parity_addr, parity_of_byte( a ) );
+                inc_cycle = 1;
+                break;
+            case 0x7: // MOV operand,#data
+                if ( ls_nibble == 4 ) {
+                    a = *value;
                     set_bit_to( parity_addr, parity_of_byte( a ) );
+                } else {
+                    *value = *second_operand;
+                    inc_pc++;
+                }
+                if ( ls_nibble != 5 )
                     inc_cycle = 1;
-                    break;
-                case 0x2: // RL A
-                    bit = is_bit_set( acc_7_addr );
-                    a <<= 1;
-                    set_bit_to( acc_0_addr, bit );
-                    inc_cycle = 1;
-                    break;
-                case 0x3: // RLC A
-                    bit = is_bit_set( acc_7_addr );
-                    a <<= 1;
-                    set_bit_to( acc_0_addr, carry_addr );
-                    set_bit_to( carry_addr, bit );
-                    set_bit_to( parity_addr, parity_of_byte( a ) );
-                    inc_cycle = 1;
-                    break;
-                case 0x4: // ORL address,#data
-                    direct_acc( arg1 ) |= arg2;
-                    inc_pc = 3;
-                    break;
-                case 0x5: // ANL address,#data
-                    direct_acc( arg1 ) &= arg2;
-                    inc_pc = 3;
-                    break;
-                case 0x6: // XRL address,#data
-                    direct_acc( arg1 ) ^= arg2;
-                    inc_pc = 3;
-                    break;
-                case 0x7: // JMP @A+DPTR
-                    pc = ( ( static_cast<u16>( dph ) << 8 ) | dpl ) + static_cast<u16>( a );
-                    inc_pc = 0;
-                    break;
-                case 0x8: // MOVC A,@A+PC
-                    pc++;
-                    a = text[pc + static_cast<u16>( a )];
-                    set_bit_to( parity_addr, parity_of_byte( a ) );
-                    inc_pc = 0;
-                    break;
-                case 0x9: // MOVC A,@A+DPTR
-                    a = text[( ( static_cast<u16>( dph ) << 8 ) | dpl ) + static_cast<u16>( a )];
-                    set_bit_to( parity_addr, parity_of_byte( a ) );
-                    break;
-                case 0xA: // INC DPTR
-                    dpl++;
-                    if ( dpl == 0 )
-                        dph++;
-                    break;
-                case 0xB: // CPL C
-                    set_bit_to( carry_addr, !is_bit_set( carry_addr ) );
-                    inc_cycle = 1;
-                    break;
-                case 0xC: // CLR C
+                break;
+            case 0x8: // MOV address,operand
+                if ( ls_nibble == 4 ) {
+                    // Actually encodes division
                     set_bit_to( carry_addr, false );
-                    inc_cycle = 1;
-                    break;
-                case 0xD: // SETB C
-                    set_bit_to( carry_addr, true );
-                    inc_cycle = 1;
-                    break;
-                case 0xE: // MOVX A,@R1
-                    a = xram[( static_cast<u16>( p2 ) << 8 ) + r1];
+                    if ( b == 0 ) {
+                        log( "Division by zero!" );
+                        set_bit_to( overflow_addr, true );
+                    } else {
+                        auto rem = a - a / b;
+                        a = a / b;
+                        b = rem;
+                        set_bit_to( overflow_addr, false );
+                        set_bit_to( parity_addr, parity_of_byte( a ) );
+                    }
+                    inc_pc = 1;
+                    inc_cycle = 4;
+                } else if ( ls_nibble == 5 ) {
+                    direct_acc( arg2 ) = *value; // Swapped parameters!
+                    inc_pc = 3;
+                } else {
+                    direct_acc( arg1 ) = *value;
+                    inc_pc = 2;
+                }
+                break;
+            case 0x9: // SUBB A,operand
+                result = static_cast<i16>( a ) - static_cast<i16>( *value ) - ( is_bit_set( carry_addr ) ? 1 : 0 );
+                set_bit_to( overflow_addr, result > 0xff );
+                set_bit_to( carry_addr, result < 0 );
+                set_bit_to( auxilary_addr, ( a & 0b1000 ) == 1 && ( static_cast<u8>( result ) & 0b1000 ) == 0 );
+                a = result;
+                set_bit_to( parity_addr, parity_of_byte( a ) );
+                inc_cycle = 1;
+                break;
+            case 0xA: // MOV operand,address
+                if ( ls_nibble == 4 ) {
+                    // Actually encodes multiplication
+                    set_bit_to( carry_addr, false );
+                    u16 prod = static_cast<u16>( a ) * static_cast<u16>( b );
+                    a = prod;
+                    b = prod >> 8;
+                    set_bit_to( overflow_addr, prod > 0xff );
                     set_bit_to( parity_addr, parity_of_byte( a ) );
-                    break;
-                case 0xF: // MOVX @R1,A
-                    xram[( static_cast<u16>( p2 ) << 8 ) + r1] = a;
-                    break;
+                    inc_pc = 1;
+                    inc_cycle = 4;
+                } else if ( ls_nibble == 5 ) {
+                    // Reserved instruction
+                    log( "Executed reserved instruction A5!" );
+                    inc_pc = 1;
+                    inc_cycle = 1;
+                } else {
+                    *value = direct_acc( arg1 );
+                    inc_pc = 2;
+                }
+                break;
+            case 0xB: // CJNE operand,#data,offset
+                if ( ls_nibble == 4 ) {
+                    pc += 3;
+                    if ( a != arg1 )
+                        pc += *reinterpret_cast<i8 *>( second_operand );
+                    set_bit_to( carry_addr, a < arg1 );
+                } else if ( ls_nibble == 5 ) {
+                    pc += 3;
+                    if ( a != *value )
+                        pc += *reinterpret_cast<i8 *>( second_operand );
+                    set_bit_to( carry_addr, a < *value );
+                } else {
+                    pc += 3;
+                    if ( *value != arg1 )
+                        pc += *reinterpret_cast<i8 *>( second_operand );
+                    set_bit_to( carry_addr, *value < arg1 );
+                }
+                inc_pc = 0;
+                break;
+            case 0xC: // XCH A,operand
+                if ( ls_nibble == 4 ) {
+                    // Actually encodes swap A nibbles
+                    a = ( ( a & 0xf ) << 4 ) | ( ( a & 0xf0 ) >> 4 );
+                    inc_pc = 1;
+                } else {
+                    auto tmp = *value;
+                    *value = a;
+                    a = tmp;
+                    set_bit_to( parity_addr, parity_of_byte( a ) );
+                    inc_pc = ls_nibble == 5 ? 2 : 1;
+                }
+                inc_cycle = 1;
+                break;
+            case 0xD: // DJNZ operand,offset
+                if ( ls_nibble == 4 ) {
+                    // Actually encodes DA A
+                    if ( ( a & 0xf ) > 9 || is_bit_set( auxilary_addr ) ) {
+                        if ( static_cast<u16>( a ) + 6 > 0xff )
+                            set_bit_to( carry_addr, true );
+                        a += 6;
+                    }
+                    if ( ( ( a & 0xf0 ) >> 4 ) > 9 || is_bit_set( carry_addr ) ) {
+                        if ( static_cast<u16>( a ) + 6 > 0xff )
+                            set_bit_to( carry_addr, true );
+                        a += 0x60;
+                    }
+                    set_bit_to( parity_addr, parity_of_byte( a ) );
+                    inc_pc = 1;
+                    inc_cycle = 1;
+                } else if ( ls_nibble == 6 || ls_nibble == 7 ) {
+                    // Actually encodes XCHD
+                    u8 tmp = *value & 0xf;
+                    *value = ( *value & 0xf0 ) | ( a & 0xf );
+                    a = ( a & 0xf0 ) | tmp;
+                    inc_pc = 1;
+                    inc_cycle = 1;
+                } else if ( ls_nibble == 5 ) {
+                    pc += 3; // Documentation specifies 2, but 3 makes more sense.
+                    ( *value )--;
+                    if ( *value != 0 )
+                        pc += *reinterpret_cast<i8 *>( second_operand );
+                    inc_pc = 0;
+                } else {
+                    pc += 2;
+                    ( *value )--;
+                    if ( *value != 0 )
+                        pc += *reinterpret_cast<i8 *>( &arg1 );
+                    inc_pc = 0;
+                }
+                break;
+            case 0xE: // MOV A,operand
+                if ( ls_nibble == 4 ) {
+                    // Actually encodes CLR A
+                    a = 0;
+                    inc_pc = 1;
+                } else {
+                    a = *value;
+                    set_bit_to( parity_addr, parity_of_byte( a ) );
+                }
+                inc_cycle = 1;
+                break;
+            case 0xF: // MOV operand,A
+                if ( ls_nibble == 4 ) {
+                    // Actually encodes CPL A
+                    a = ~a;
+                    inc_pc = 1;
+                } else {
+                    *value = a;
+                    set_bit_to( parity_addr, parity_of_byte( a ) );
+                }
+                inc_cycle = 1;
+                break;
 
-                default:
-                    break;
+            default:
+                break;
+            }
+        } else {
+            // Irregular instruction
+            if ( ( instr & 0b11111 ) == 1 ) {
+                // AJMP addr11
+                pc += 2;
+                pc = ( pc & 0b1111100000000000 ) + ( static_cast<u16>( instr & 0b11100000 ) << 3 ) + arg1;
+                inc_pc = 0;
+            } else if ( ( instr & 0b11111 ) == 0x11 ) {
+                // ACALL addr11
+                pc += 2;
+                sp++;
+                iram[sp] = pc & 0xff;
+                sp++;
+                iram[sp] = pc & 0xff00;
+                pc = ( pc & 0b1111100000000000 ) + ( static_cast<u16>( instr & 0b11100000 ) << 3 ) + arg1;
+                inc_pc = 0;
+            } else {
+                if ( ls_nibble == 0 ) {
+                    switch ( ms_nibble ) {
+                    case 0x0: // NOP
+                        inc_cycle = 1;
+                        break;
+                    case 0x1: // JBC bit,offset
+                        pc += 3;
+                        if ( is_bit_set( arg1 ) ) {
+                            set_bit_to( arg1, false );
+                            pc += *reinterpret_cast<i8 *>( &arg2 );
+                        }
+                        inc_pc = 0;
+                        break;
+                    case 0x2: // JB bit,offset
+                        pc += 3;
+                        if ( is_bit_set( arg1 ) ) {
+                            pc += *reinterpret_cast<i8 *>( &arg2 );
+                        }
+                        inc_pc = 0;
+                        break;
+                    case 0x3: // JNB bit,offset
+                        pc += 3;
+                        if ( !is_bit_set( arg1 ) ) {
+                            pc += *reinterpret_cast<i8 *>( &arg2 );
+                        }
+                        inc_pc = 0;
+                        break;
+                    case 0x4: // JC offset
+                        pc += 2;
+                        if ( is_bit_set( carry_addr ) ) {
+                            pc += *reinterpret_cast<i8 *>( &arg1 );
+                        }
+                        inc_pc = 0;
+                        break;
+                    case 0x5: // JNC offset
+                        pc += 2;
+                        if ( !is_bit_set( carry_addr ) ) {
+                            pc += *reinterpret_cast<i8 *>( &arg1 );
+                        }
+                        inc_pc = 0;
+                        break;
+                    case 0x6: // JZ offset
+                        pc += 2;
+                        if ( a == 0 ) {
+                            pc += *reinterpret_cast<i8 *>( &arg1 );
+                        }
+                        inc_pc = 0;
+                        break;
+                    case 0x7: // JNZ offset
+                        pc += 2;
+                        if ( a != 0 ) {
+                            pc += *reinterpret_cast<i8 *>( &arg1 );
+                        }
+                        inc_pc = 0;
+                        break;
+                    case 0x8: // SJMP offset
+                        pc += 2 + *reinterpret_cast<i8 *>( &arg1 );
+                        inc_pc = 0;
+                        break;
+                    case 0x9: // MOV DPTR,#data16
+                        dph = arg1;
+                        dpl = arg2;
+                        inc_pc = 3;
+                        break;
+                    case 0xA: // ORL C,/bit
+                        set_bit_to( carry_addr, is_bit_set( carry_addr ) | !is_bit_set( arg1 ) );
+                        inc_pc = 2;
+                        break;
+                    case 0xB: // ANL C,/bit
+                        set_bit_to( carry_addr, is_bit_set( carry_addr ) & !is_bit_set( arg1 ) );
+                        inc_pc = 2;
+                        break;
+                    case 0xC: // PUSH address
+                        sp++;
+                        iram[sp] = direct_acc( arg1 );
+                        inc_pc = 2;
+                        break;
+                    case 0xD: // POP address
+                        direct_acc( arg1 ) = iram[sp];
+                        sp--;
+                        inc_pc = 2;
+                        break;
+                    case 0xE: // MOVX A,@DPTR
+                        a = xram[( static_cast<u16>( dph ) << 8 ) + dpl];
+                        set_bit_to( parity_addr, parity_of_byte( a ) );
+                        break;
+                    case 0xF: // MOVX @DPTR,A
+                        xram[( static_cast<u16>( dph ) << 8 ) | dpl] =
+                            a; // Missing in documentation, but this makes sense.
+                        break;
+
+                    default:
+                        break;
+                    }
+                } else if ( ls_nibble == 2 ) {
+                    switch ( ms_nibble ) {
+                    case 0x0: // LJMP addr16
+                        pc = ( static_cast<u16>( arg1 ) << 8 ) | arg2;
+                        inc_pc = 0;
+                        break;
+                    case 0x1: // LCALL addr16
+                        pc += 3;
+                        sp++;
+                        iram[sp] = pc & 0xff;
+                        sp++;
+                        iram[sp] = ( pc & 0xff00 ) >> 8;
+                        pc = ( static_cast<u16>( arg1 ) << 8 ) | arg2;
+                        inc_pc = 0;
+                        break;
+                    case 0x2: // RET
+                        pc = ( static_cast<u16>( iram[sp] ) << 8 ) | iram[sp - 1];
+                        sp -= 2;
+                        inc_pc = 0;
+                        break;
+                    case 0x3: // RETI
+                        pc = ( static_cast<u16>( iram[sp] ) << 8 ) | iram[sp - 1];
+                        sp -= 2;
+                        inc_pc = 0;
+                        is_in_interrupt = false;
+                        is_in_high_prio_intr = false;
+                        was_in_interrupt = true;
+                        break;
+                    case 0x4: // ORL address,A
+                        direct_acc( arg1 ) |= a;
+                        inc_pc = 2;
+                        inc_cycle = 1;
+                        break;
+                    case 0x5: // ANL address,A
+                        direct_acc( arg1 ) &= a;
+                        inc_pc = 2;
+                        inc_cycle = 1;
+                        break;
+                    case 0x6: // XRL address,A
+                        direct_acc( arg1 ) ^= a;
+                        inc_pc = 2;
+                        inc_cycle = 1;
+                        break;
+                    case 0x7: // ORL C,bit
+                        set_bit_to( carry_addr, is_bit_set( carry_addr ) | is_bit_set( arg1 ) );
+                        inc_pc = 2;
+                        break;
+                    case 0x8: // ANL C,bit
+                        set_bit_to( carry_addr, is_bit_set( carry_addr ) & is_bit_set( arg1 ) );
+                        inc_pc = 2;
+                        break;
+                    case 0x9: // MOV bit,C
+                        set_bit_to( arg1, is_bit_set( carry_addr ) );
+                        inc_pc = 2;
+                        break;
+                    case 0xA: // MOV C,bit
+                        set_bit_to( carry_addr, is_bit_set( arg1 ) );
+                        inc_pc = 2;
+                        inc_cycle = 1;
+                        break;
+                    case 0xB: // CPL bit
+                        set_bit_to( arg1, !is_bit_set( arg1 ) );
+                        inc_pc = 2;
+                        inc_cycle = 1;
+                        break;
+                    case 0xC: // CLR bit
+                        set_bit_to( arg1, false );
+                        inc_pc = 2;
+                        inc_cycle = 1;
+                        break;
+                    case 0xD: // SETB bit
+                        set_bit_to( arg1, true );
+                        inc_pc = 2;
+                        inc_cycle = 1;
+                        break;
+                    case 0xE: // MOVX A,@R0
+                        a = xram[( static_cast<u16>( p2 ) << 8 ) + r0];
+                        set_bit_to( parity_addr, parity_of_byte( a ) );
+                        break;
+                    case 0xF: // MOVX @R0,A
+                        xram[( static_cast<u16>( p2 ) << 8 ) + r0] = a;
+                        break;
+
+                    default:
+                        break;
+                    }
+                } else if ( ls_nibble == 3 ) {
+                    switch ( ms_nibble ) {
+                    case 0x0: // RR A
+                        bit = is_bit_set( acc_0_addr );
+                        a >>= 1;
+                        if ( bit )
+                            a |= 0b10000000;
+                        inc_cycle = 1;
+                        break;
+                    case 0x1: // RRC A
+                        bit = is_bit_set( acc_0_addr );
+                        a >>= 1;
+                        set_bit_to( acc_7_addr, carry_addr );
+                        set_bit_to( carry_addr, bit );
+                        set_bit_to( parity_addr, parity_of_byte( a ) );
+                        inc_cycle = 1;
+                        break;
+                    case 0x2: // RL A
+                        bit = is_bit_set( acc_7_addr );
+                        a <<= 1;
+                        set_bit_to( acc_0_addr, bit );
+                        inc_cycle = 1;
+                        break;
+                    case 0x3: // RLC A
+                        bit = is_bit_set( acc_7_addr );
+                        a <<= 1;
+                        set_bit_to( acc_0_addr, carry_addr );
+                        set_bit_to( carry_addr, bit );
+                        set_bit_to( parity_addr, parity_of_byte( a ) );
+                        inc_cycle = 1;
+                        break;
+                    case 0x4: // ORL address,#data
+                        direct_acc( arg1 ) |= arg2;
+                        inc_pc = 3;
+                        break;
+                    case 0x5: // ANL address,#data
+                        direct_acc( arg1 ) &= arg2;
+                        inc_pc = 3;
+                        break;
+                    case 0x6: // XRL address,#data
+                        direct_acc( arg1 ) ^= arg2;
+                        inc_pc = 3;
+                        break;
+                    case 0x7: // JMP @A+DPTR
+                        pc = ( ( static_cast<u16>( dph ) << 8 ) | dpl ) + static_cast<u16>( a );
+                        inc_pc = 0;
+                        break;
+                    case 0x8: // MOVC A,@A+PC
+                        pc++;
+                        a = text[pc + static_cast<u16>( a )];
+                        set_bit_to( parity_addr, parity_of_byte( a ) );
+                        inc_pc = 0;
+                        break;
+                    case 0x9: // MOVC A,@A+DPTR
+                        a = text[( ( static_cast<u16>( dph ) << 8 ) | dpl ) + static_cast<u16>( a )];
+                        set_bit_to( parity_addr, parity_of_byte( a ) );
+                        break;
+                    case 0xA: // INC DPTR
+                        dpl++;
+                        if ( dpl == 0 )
+                            dph++;
+                        break;
+                    case 0xB: // CPL C
+                        set_bit_to( carry_addr, !is_bit_set( carry_addr ) );
+                        inc_cycle = 1;
+                        break;
+                    case 0xC: // CLR C
+                        set_bit_to( carry_addr, false );
+                        inc_cycle = 1;
+                        break;
+                    case 0xD: // SETB C
+                        set_bit_to( carry_addr, true );
+                        inc_cycle = 1;
+                        break;
+                    case 0xE: // MOVX A,@R1
+                        a = xram[( static_cast<u16>( p2 ) << 8 ) + r1];
+                        set_bit_to( parity_addr, parity_of_byte( a ) );
+                        break;
+                    case 0xF: // MOVX @R1,A
+                        xram[( static_cast<u16>( p2 ) << 8 ) + r1] = a;
+                        break;
+
+                    default:
+                        break;
+                    }
                 }
             }
         }

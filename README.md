@@ -12,6 +12,7 @@ I need a simulator for my little compiler project and didn't find a simple one t
 * Vague syntax specification for the integrated assembler can be found in Encoding.hpp. Available mnemonics can be found in keil's documentation (see sources section).
 * A few keyboard shortcuts are supported: Space (single step), R (reset MCU), CTRL+Enter while editing (save & compile), P (run/pause), L (reload all files and compile).
 * Breakpoints can be set by clicking on the left column in assembly view. You can also change the "break instruction".
+* The simulation does not mirror the hardware one-to-one. Some features like interrupts might trigger one cycle too late or ports may behave differently.
 
 ## Dependencies
 Install them with a package manager like "pacman" or follow the instructions on their website.
@@ -50,5 +51,6 @@ The "Processor" and "Encoding+Processor" modules are designed to be independent 
 
 ## Sources
 * https://en.wikipedia.org/wiki/Intel_8051
+* https://opencores.org/websvn/filedetails?repname=8051&path=%2F8051%2Ftrunk%2Fdoc%2Fpdf%2Foc8051_spec.pdf
 * https://www.keil.com/support/man/docs/is51
 * https://technobyte.org/8051-special-function-registers-sfr/#Program_status_word_PSW

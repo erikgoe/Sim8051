@@ -5,6 +5,13 @@
 /// Holds processor context and does the simulation.
 class Processor {
     u8 invalid_byte; // Used for invalid access (like accessing invalid direct addresses)
+
+    bool int0_in_mem = false;
+    bool int1_in_mem = false;
+    bool is_in_interrupt = false;
+    bool is_in_high_prio_intr = false;
+    bool was_in_interrupt = false; // One instruction after RETI is always executed (see specifaction):
+
 public:
     /// Returns the value at a direct address.
     u8 &direct_acc( u8 addr );
@@ -30,9 +37,13 @@ public:
     /// Load source code from a HEX-file. Returns true on success.
     bool load_hex_code( const String &file );
 
-    /// Resets all state (except text/code).
+    /// Resets all state (except ram and text/code).
     void reset();
 
-    /// Performs one machine cycle (12 ticks on the original MCU).
+    /// Resets all state (except text/code).
+    void full_reset();
+
+    /// Performs one or more machine cycles (multiple 12 ticks on the original MCU).
+    /// The cycle count depends on the executed instruction. Always one instruction is executed.
     void do_cycle();
 };

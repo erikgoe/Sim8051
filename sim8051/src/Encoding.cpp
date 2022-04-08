@@ -447,7 +447,8 @@ String get_decoded_instruction_string( Processor &processor, u16 code_addr ) {
             ret += " (" + to_hex_str( addr, 16 ) + ")";
             operand_offset++;
         } else if ( operand == "offset" ) {
-            ret += " (to " + to_hex_str( ( code_addr + processor.text[code_addr + operand_offset] + size ) ) + ")";
+            ret += " (to " +
+                   to_hex_str( static_cast<u8>( code_addr + processor.text[code_addr + operand_offset] + size ) ) + ")";
             operand_offset++;
         } else if ( operand == "bit" || operand == "/bit" ) {
             u8 bit_addr = processor.text[code_addr + operand_offset];
@@ -672,7 +673,7 @@ void compile_assembly( const String &code, std::ostream &output ) {
             line.pop_back();
         while ( line.find_first_of( " " ) == 0 )
             line = line.substr( 1 );
-        if ( line.find( "str " ) != 0 ) {
+        if ( line.find( ".str " ) != 0 ) {
             line = line.substr( 0, line.find( ";" ) );
             while ( line.find( "," ) != line.npos )
                 line.replace( line.find( "," ), 1, " " );
