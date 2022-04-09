@@ -5,6 +5,8 @@
 #include <vector>
 #include <deque>
 #include <map>
+#include <array>
+#include <sstream>
 #include <functional>
 #include <fstream>
 #include <filesystem>
