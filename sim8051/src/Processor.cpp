@@ -9,7 +9,7 @@ u8 &Processor::direct_acc( u8 addr ) {
     if ( addr < 0x80 ) {
         return iram[addr];
     } else {
-        if ( std::find( valid_sfr_addresses.begin(), valid_sfr_addresses.end(), addr ) ) {
+        if ( std::find( valid_sfr_addresses.begin(), valid_sfr_addresses.end(), addr ) != valid_sfr_addresses.end() ) {
             return sfr[addr - 0x80];
         } else {
             log( "Invalid access to sfr at address " + to_string( addr ) + ", PC: " + to_string( pc ) );
