@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.6)
 
 # add files
-add_executable(${EXE_NAME}
+add_executable(${EXE_NAME} WIN32
     ../../deps/imgui/imgui.cpp
     ../../deps/imgui/imgui_draw.cpp
     ../../deps/imgui/imgui_tables.cpp
@@ -28,9 +28,20 @@ target_include_directories(${EXE_NAME}
         ${CMAKE_CURRENT_SOURCE_DIR}/../../deps/imgui
         ${CMAKE_CURRENT_SOURCE_DIR}/../../deps/imgui-sfml
         ${CMAKE_CURRENT_SOURCE_DIR}/../../deps
+        ${SFML_INCLUDE_DIR}
 )
 
 # linking
+if (MSVC)
+target_link_directories(${EXE_NAME} 
+    PRIVATE
+        ${SFML_LIB_DIR}
+)
+target_link_libraries(${EXE_NAME}
+    opengl32 sfml-graphics-s sfml-window-s sfml-system-s sfml-main winmm gdi32
+)
+else()
 target_link_libraries(${EXE_NAME}
     GL sfml-graphics
 )
+endif()

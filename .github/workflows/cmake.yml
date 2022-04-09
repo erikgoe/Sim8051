@@ -1,0 +1,57 @@
+name: CMake
+
+on:
+  push:
+    tags:
+      - "v*.*"
+
+env:
+  BUILD_TYPE: Release
+
+jobs:
+  build:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+
+    steps:
+    - uses: actions/checkout@v3
+
+    - name: Install sfml dependency (Linux)
+      if: runner.os == 'Linux'
+      run: sudo apt-get install libsfml-dev
+
+    - name: Install sfml dependency (Windows)
+      if: runner.os == 'Windows'
+      run: |
+        Invoke-WebRequest https://github.com/SFML/SFML/releases/download/2.5.1/SFML-2.5.1-windows-vc15-64-bit.zip -OutFile sfml.zip
+        Expand-Archive sfml.zip -DestinationPath deps/sfml
+
+    - name: Download ImGui dependency
+      run: |
+        git clone https://github.com/ocornut/imgui deps/imgui
+        git clone https://github.com/eliasdaler/imgui-sfml deps/imgui-sfml
+        git -C deps/imgui checkout docking
+        cat deps/imgui-sfml/imconfig-SFML.h >> deps/imgui/imconfig.h
+
+    - name: Configure CMake (Linux)
+      if: runner.os == 'Linux'
+      run: cmake -B ${{github.workspace}}/build -DCMAKE_BUILD_TYPE=${{env.BUILD_TYPE}}
+
+    - name: Configure CMake (Windows)
+      if: runner.os == 'Windows'
+      run: |
+        cmake -B ${{github.workspace}}/build -DCMAKE_BUILD_TYPE=${{env.BUILD_TYPE}} -DSFML_DIR="${{github.workspace}}/deps/sfml/SFML-2.5.1/lib/cmake/SFML" -DSFML_INCLUDE_DIR="${{github.workspace}}/deps/sfml/SFML-2.5.1/include" -DSFML_LIB_DIR="${{github.workspace}}/deps/sfml/SFML-2.5.1/lib"
+
+    - name: Build
+      run: |
+        cmake --build ${{github.workspace}}/build --config ${{env.BUILD_TYPE}} -j 2
+
+    - name: Release
+      uses: softprops/action-gh-release@v1
+      with:
+        files: |
+          build/sim8051/src/sim8051
+          build/sim8051/src/Release/sim8051.exe
+        body: "Automated release build."
