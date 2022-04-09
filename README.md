@@ -3,6 +3,10 @@ A simple simulator for the 8051 architecture. Includes a disassembler and a simp
 
 ![Screenshot of the simulator user interface](https://github.com/erikgoe/Sim8051/blob/main/doc/screenshot.png "User interface")
 
+Head to the releases section to download the application or build it using the instructions below. Some simple example programs can be found in the `tests` directory. Please be aware that not every instruction has been extensively tested, so expect bugs.
+
+Feel free to open an issue, if you find a bug or have other suggestions/ideas.
+
 ## Why?
 I need a simulator for my little compiler project and didn't find a simple one that compiles on linux, so I thought it would make sense to "quickly" write my own.
 
@@ -40,12 +44,27 @@ SFML ist the only dependency which must be installed manually, the rest is inclu
     make
 
 ### Windows
-    TBD (probably similar to the linux procedure)...
+    mkdir deps && cd deps
+    git clone https://github.com/ocornut/imgui
+    git clone https://github.com/eliasdaler/imgui-sfml
+    git -C imgui checkout docking # only necessary until docking branch is merged
 
-## Missing things
-* Interrupts
-* Timer
-* Power modes
+Copy `imgui-sfml/imconfig-SFML.h` to `imgui/imconfig.h`.
+The following assumes you have downloaded SFML into `deps/sfml/SFML-2.5.1`. If not, update the paths accordingly.
+
+    mkdir build && cd build
+    cmake .. -DSFML_DIR="deps/sfml/SFML-2.5.1/lib/cmake/SFML"
+    cmake --build . -j 8
+
+If the build fails with missing include paths or .lib files, try to add `-DSFML_INCLUDE_DIR="deps/sfml/SFML-2.5.1/include" -DSFML_LIB_DIR="deps/sfml/SFML-2.5.1/lib"` to the cmake command.
+
+## Features that might be added some day
+* Serial port/UART
+* A/D converter
+* Models that can be connected to the ports and played around with.
+* Inline editing of SFR registers and memory while the simulator is running.
+* Support for more assembly features (like variables, including other files, "meta" mnemonics).
+* Memory breakpoints
 
 ## Other notes
 In theory you can use this code in your own project by just including Processor.hpp/.cpp (+stdafx.hpp) and you'll have a full simulator at your service.
