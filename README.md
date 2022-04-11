@@ -5,10 +5,22 @@ A simple simulator for the 8051 architecture. Includes a disassembler and a simp
 
 Head to the releases section to download the application or build it using the instructions below. Some simple example programs can be found in the `examples` directory. Please be aware that not every instruction has been extensively tested, so expect bugs.
 
-Feel free to open an issue, if you find a bug or have other suggestions/ideas.
+Feel free to open an issue, if you find a bug or have other suggestions/ideas or questions.
 
 ## Why?
 I need a simulator for my little compiler project and didn't find a simple one that compiles on linux, so I thought it would make sense to "quickly" write my own.
+
+## Features
+* Simulate the microcontroller with its whole ISA.
+* Load programs from Intel hex files.
+* Timers.
+* Interrupts.
+* External ram.
+* Assembly view with decoded instructions and live-update of register content.
+* Ste-by-step execution and breakpoints (address and instruction based).
+* Assembly editor with integrated assembler that allows an easier workflow.
+* Simple decimal to hexadecimal converter (also vice versa).
+* Flexible GUI: dock or hide windows according to your preferences.
 
 ## Usage notes
 * GUI docking: I recommend to create a proper layout by moving the sub-windows to the window edges.
@@ -18,7 +30,7 @@ I need a simulator for my little compiler project and didn't find a simple one t
 * Breakpoints can be set by clicking on the left column in assembly view. You can also change the "break instruction".
 * The simulation does not mirror the hardware one-to-one. Some features like interrupts might trigger one cycle too late or ports may behave differently.
 * Labels must contain at least one non-hexadecimal character to be usable.
-* Labels can be used with any jump instructions and intstruction 0x90 (mov dptr, <value/label>)
+* Labels can be used with any jump instructions and instruction 0x90 (mov dptr, <value/label>)
 
 ## Dependencies
 Install them with a package manager like "pacman" or follow the instructions on their website.
