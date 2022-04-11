@@ -3,7 +3,7 @@ A simple simulator for the 8051 architecture. Includes a disassembler and a simp
 
 ![Screenshot of the simulator user interface](https://github.com/erikgoe/Sim8051/blob/main/doc/screenshot.png "User interface")
 
-Head to the releases section to download the application or build it using the instructions below. Some simple example programs can be found in the `tests` directory. Please be aware that not every instruction has been extensively tested, so expect bugs.
+Head to the releases section to download the application or build it using the instructions below. Some simple example programs can be found in the `examples` directory. Please be aware that not every instruction has been extensively tested, so expect bugs.
 
 Feel free to open an issue, if you find a bug or have other suggestions/ideas.
 
