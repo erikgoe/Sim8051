@@ -3,7 +3,7 @@
 #include "sim8051/stdafx.hpp"
 #include "sim8051/Processor.hpp"
 
-String to_hex_str( u16 val, u8 bytes = 8 );
+String to_hex_str( u16 val, u8 bit = 8 );
 String to_hex_str_signed( i8 val );
 
 /// Decode instructions to detect single op codes.
