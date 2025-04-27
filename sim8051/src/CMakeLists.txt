@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.6)
+cmake_minimum_required(VERSION 3.21)
 
 # add files
 add_executable(${EXE_NAME} WIN32
@@ -38,10 +38,10 @@ target_link_directories(${EXE_NAME}
         ${SFML_LIB_DIR}
 )
 target_link_libraries(${EXE_NAME}
-    opengl32 sfml-graphics-s sfml-window-s sfml-system-s sfml-main winmm gdi32
+    opengl32 SFML::Graphics-s SFML::Window-s SFML::System-s SFML::Main winmm gdi32
 )
 else()
 target_link_libraries(${EXE_NAME}
-    GL sfml-graphics
+    GL SFML::Graphics
 )
 endif()

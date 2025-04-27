@@ -10,6 +10,9 @@
 #include <functional>
 #include <fstream>
 #include <filesystem>
+#include <algorithm>
+
+using size_t = std::size_t;
 
 using u8 = unsigned char;
 using u16 = unsigned short;

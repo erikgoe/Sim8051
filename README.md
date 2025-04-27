@@ -62,13 +62,13 @@ SFML ist the only dependency which must be installed manually, the rest is inclu
     git -C imgui checkout docking # only necessary until docking branch is merged
 
 Copy `imgui-sfml/imconfig-SFML.h` to `imgui/imconfig.h`.
-The following assumes you have downloaded SFML into `deps/sfml/SFML-2.5.1`. If not, update the paths accordingly.
+The following assumes you have downloaded SFML into `deps/sfml/SFML-3.0.1`. If not, update the paths accordingly.
 
     mkdir build && cd build
-    cmake .. -DSFML_DIR="deps/sfml/SFML-2.5.1/lib/cmake/SFML"
+    cmake .. -DSFML_DIR="deps/sfml/SFML-3.0.1/lib/cmake/SFML"
     cmake --build . -j 8
 
-If the build fails with missing include paths or .lib files, try to add `-DSFML_INCLUDE_DIR="deps/sfml/SFML-2.5.1/include" -DSFML_LIB_DIR="deps/sfml/SFML-2.5.1/lib"` to the cmake command.
+If the build fails with missing include paths or .lib files, try to add `-DSFML_INCLUDE_DIR="deps/sfml/SFML-3.0.1/include" -DSFML_LIB_DIR="deps/sfml/SFML-3.0.1/lib"` to the cmake command.
 
 ## Features that might be added some day
 * Serial port/UART

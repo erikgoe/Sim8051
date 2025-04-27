@@ -23,8 +23,9 @@ char to_human_readable_ascii( u8 c ) {
 // The main loop, including some stuff like scrolling
 int main() {
     // Initialize all the stuff
-    sf::ContextSettings context_settings( 0, 0, 4 );
-    sf::RenderWindow window( sf::VideoMode( 1200, 800, 32 ), "Sim8051", sf::Style::Default, context_settings );
+    sf::ContextSettings context_settings{ 0, 0, 4 };
+    sf::RenderWindow window( sf::VideoMode( sf::Vector2u( 1200, 800 ), 32 ), "Sim8051", sf::State::Windowed,
+                             context_settings );
     bool fullscreen = false;
     window.setVerticalSyncEnabled( true );
     auto view = window.getDefaultView();
@@ -47,7 +48,6 @@ int main() {
     io.ConfigFlags |= ImGuiConfigFlags_DockingEnable;
 
     bool running = true;
-    sf::Event evt;
 
 
     // Simulation stuff
@@ -81,57 +81,48 @@ int main() {
         auto delta_time = timer.restart();
 
         // Event handling
-        while ( window.pollEvent( evt ) ) {
-            ImGui::SFML::ProcessEvent( evt );
+        while ( const std::optional evt = window.pollEvent() ) {
+            ImGui::SFML::ProcessEvent( window, *evt );
             bool not_on_gui = !ImGui::IsAnyItemHovered() && !ImGui::IsWindowHovered( ImGuiHoveredFlags_AnyWindow );
             bool not_key_insert_gui = !ImGui::IsAnyItemActive();
 
-            switch ( evt.type ) {
-            case sf::Event::Closed:
+            if ( evt->is<sf::Event::Closed>() ) {
                 running = false;
-                break;
-            case sf::Event::KeyPressed:
+
+            } else if ( const auto *key_pressed = evt->getIf<sf::Event::KeyPressed>() ) {
                 if ( not_key_insert_gui ) {
                     // Key input
-                    if ( evt.key.code == sf::Keyboard::Space ) {
+                    if ( key_pressed->code == sf::Keyboard::Key::Space ) {
                         // Single step
                         steps_per_frame = 1;
                         pause_next_frame = true;
                         max_speed = false;
                         use_fix_target_frequency = false;
-                    } else if ( evt.key.code == sf::Keyboard::R ) {
-                        if ( evt.key.shift ) {
+                    } else if ( key_pressed->code == sf::Keyboard::Key::R ) {
+                        if ( key_pressed->shift ) {
                             processor->full_reset();
                         } else {
                             processor->reset();
                         }
-                    } else if ( evt.key.code == sf::Keyboard::P ) {
+                    } else if ( key_pressed->code == sf::Keyboard::Key::P ) {
                         max_speed = false;
                         steps_per_frame = steps_per_frame == 0 ? 1 : 0;
-                        use_fix_target_frequency = evt.key.shift;
-                    } else if ( evt.key.code == sf::Keyboard::L ) {
+                        use_fix_target_frequency = key_pressed->shift;
+                    } else if ( key_pressed->code == sf::Keyboard::Key::L ) {
                         should_compile = true;
                         should_load = true;
                     }
                 }
-                break;
-            case sf::Event::MouseButtonPressed:
+            } else if ( const auto *button_pressed = evt->getIf<sf::Event::MouseButtonPressed>() ) {
                 if ( not_on_gui ) {
-                    auto world_coords = window.mapPixelToCoords( sf::Vector2i( evt.mouseButton.x, evt.mouseButton.y ) );
+                    auto world_coords = window.mapPixelToCoords( button_pressed->position );
                 }
-                break;
-            case sf::Event::MouseButtonReleased:
-                break;
-
-            case sf::Event::MouseMoved: {
-                auto world_coords = window.mapPixelToCoords( sf::Vector2i( evt.mouseMove.x, evt.mouseMove.y ) );
-
-            } break;
-
-            case sf::Event::MouseWheelScrolled:
+            } else if ( const auto *button_released = evt->getIf<sf::Event::MouseButtonReleased>() ) {
+            } else if ( const auto *button_moved = evt->getIf<sf::Event::MouseMoved>() ) {
+                auto world_coords = window.mapPixelToCoords( button_moved->position );
+            } else if ( const auto *wheel_scrolled = evt->getIf<sf::Event::MouseWheelScrolled>() ) {
                 if ( not_on_gui ) {
                 }
-                break;
             }
         }
 
@@ -184,7 +175,7 @@ int main() {
             max_speed = false;
             use_fix_target_frequency = true;
         }
-        if ( ImGui::Button( "Reset Pin" ) ) {
+        if ( ImGui::Button( "Reset (Pin)" ) ) {
             processor->reset();
         }
         if ( ImGui::Button( "Reset MCU (full)" ) ) {
