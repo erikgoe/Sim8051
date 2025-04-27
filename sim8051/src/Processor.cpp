@@ -335,8 +335,8 @@ void Processor::do_cycle() {
                 break;
             case 0x2: // ADD A,operand
                 result = static_cast<i16>( a ) + static_cast<i16>( *value );
-                set_bit_to( overflow_addr, result > 0xff );
-                set_bit_to( carry_addr, result < 0 );
+                set_bit_to( overflow_addr, ( a & 0x80 ) == ( *value & 0x80 ) && ( a & 0x80 ) != ( result & 0x80 ) );
+                set_bit_to( carry_addr, result > 0xff );
                 set_bit_to( auxilary_addr, ( a & 0b1000 ) == 1 && ( static_cast<u8>( result ) & 0b1000 ) == 0 );
                 a = result;
                 set_bit_to( parity_addr, parity_of_byte( a ) );
@@ -344,8 +344,8 @@ void Processor::do_cycle() {
                 break;
             case 0x3: // ADDC A,operand
                 result = static_cast<i16>( a ) + static_cast<i16>( *value ) + ( is_bit_set( carry_addr ) ? 1 : 0 );
-                set_bit_to( overflow_addr, result > 0xff );
-                set_bit_to( carry_addr, result < 0 );
+                set_bit_to( overflow_addr, ( a & 0x80 ) == ( *value & 0x80 ) && ( a & 0x80 ) != ( result & 0x80 ) );
+                set_bit_to( carry_addr, result > 0xff );
                 set_bit_to( auxilary_addr, ( a & 0b1000 ) == 1 && ( static_cast<u8>( result ) & 0b1000 ) == 0 );
                 a = result;
                 set_bit_to( parity_addr, parity_of_byte( a ) );
@@ -403,7 +403,7 @@ void Processor::do_cycle() {
                 break;
             case 0x9: // SUBB A,operand
                 result = static_cast<i16>( a ) - static_cast<i16>( *value ) - ( is_bit_set( carry_addr ) ? 1 : 0 );
-                set_bit_to( overflow_addr, result > 0xff );
+                set_bit_to( overflow_addr, ( a & 0x80 ) != ( *value & 0x80 ) && ( a & 0x80 ) != ( result & 0x80 ) );
                 set_bit_to( carry_addr, result < 0 );
                 set_bit_to( auxilary_addr, ( a & 0b1000 ) == 1 && ( static_cast<u8>( result ) & 0b1000 ) == 0 );
                 a = result;
