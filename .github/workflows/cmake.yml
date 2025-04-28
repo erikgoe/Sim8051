@@ -26,7 +26,7 @@ jobs:
     - name: Install sfml dependency (Windows)
       if: runner.os == 'Windows'
       run: |
-        Invoke-WebRequest https://github.com/SFML/SFML/releases/download/2.5.1/SFML-2.5.1-windows-vc15-64-bit.zip -OutFile sfml.zip
+        Invoke-WebRequest https://github.com/SFML/SFML/releases/download/3.0.0/SFML-3.0.0-windows-vc17-64-bit.zip -OutFile sfml.zip
         Expand-Archive sfml.zip -DestinationPath deps/sfml
 
     - name: Download ImGui dependency
@@ -43,7 +43,7 @@ jobs:
     - name: Configure CMake (Windows)
       if: runner.os == 'Windows'
       run: |
-        cmake -B ${{github.workspace}}/build -DCMAKE_BUILD_TYPE=${{env.BUILD_TYPE}} -DSFML_DIR="${{github.workspace}}/deps/sfml/SFML-2.5.1/lib/cmake/SFML" -DSFML_INCLUDE_DIR="${{github.workspace}}/deps/sfml/SFML-2.5.1/include" -DSFML_LIB_DIR="${{github.workspace}}/deps/sfml/SFML-2.5.1/lib"
+        cmake -B ${{github.workspace}}/build -DCMAKE_BUILD_TYPE=${{env.BUILD_TYPE}} -DSFML_DIR="${{github.workspace}}/deps/sfml/SFML-3.0.0/lib/cmake/SFML" -DSFML_INCLUDE_DIR="${{github.workspace}}/deps/sfml/SFML-3.0.0/include" -DSFML_LIB_DIR="${{github.workspace}}/deps/sfml/SFML-3.0.0/lib"
 
     - name: Build
       run: |
