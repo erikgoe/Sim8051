@@ -3,8 +3,8 @@ cmake_minimum_required(VERSION 3.21)
 # define the project name
 project(sim8051)
 
-set(VERSION_MAJOR 0)
-set(VERSION_MINOR 2)
+set(VERSION_MAJOR 1)
+set(VERSION_MINOR 1)
 
 set(CMAKE_CXX_STANDARD 17)
 
